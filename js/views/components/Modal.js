@@ -204,6 +204,14 @@ const Modal = {
         // Backdrop click
         modalBackdrop?.addEventListener('click', () => this.handleCancel());
         
+        // Close when clicking outside modal-card (backdrop click on modal container)
+        this.currentModal.addEventListener('click', (e) => {
+            // Only close if clicking directly on the modal container, not on modal-card or its children
+            if (e.target === this.currentModal) {
+                this.handleCancel();
+            }
+        });
+        
         // Keyboard events
         keydownHandler = (event) => this.handleKeydown(event);
         document.addEventListener('keydown', keydownHandler);

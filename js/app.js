@@ -10,10 +10,13 @@
 
 import { LoginView } from './views/LoginView.js';
 import { DashboardView } from './views/DashboardView.js';
+import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 // import { EditorView } from './views/EditorView.js';
-import { initializeStorage, getAllDesigns, deleteDesign } from './utils/storage.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
+import { Design } from './models/Design.js';
+import { Room } from './models/Room.js';
 
 /**
  * Application state
@@ -107,11 +110,37 @@ function showDashboard() {
 }
 
 /**
- * Handle new design action
+ * Handle new design action — shows room setup modal
  * @private
  */
 function handleNewDesign() {
-    showEditor(null); // null = new design
+    RoomSetupModal.show({
+        onSubmit: (formData) => {
+            // Create Room from form data
+            const room = new Room(formData.room);
+            
+            // Create Design with Room and current user
+            const design = new Design({
+                name: formData.name,
+                designerName: AppState.user || '',
+                room: room,
+                furniture: []
+            });
+            
+            // Save design to storage
+            const success = saveDesign(design.toJSON());
+            
+            if (success) {
+                Toast.success(`Design "${formData.name}" created`);
+                showEditor(design.id);
+            } else {
+                Toast.error('Failed to create design');
+            }
+        },
+        onCancel: () => {
+            // User cancelled — do nothing
+        }
+    });
 }
 
 /**
