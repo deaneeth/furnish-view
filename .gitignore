@@ -1,0 +1,39 @@
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.github/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node (only if using any dev tooling)
+node_modules/
+package-lock.json
+
+# Build output (if any)
+dist/
+build/
+
+# Temp files
+*.tmp
+*.log
+
+# Identity switching script (local only)
+switch-user.sh
+
+# PDF files in root (docs/ PDFs are allowed)
+/*.pdf
+
+# Miscellaneous
+/requirements
+/video
+
+# Do NOT ignore:
+# - lib/three.min.js
+# - lib/OrbitControls.js
+# - assets/
+# These MUST be committed so the app runs without any setup.
