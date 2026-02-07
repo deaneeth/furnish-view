@@ -2,43 +2,102 @@
  * FurnishView — Authentication Module
  * 
  * Handles login validation, session management, and user authentication.
- * Uses localStorage for credential and session storage.
+ * Uses localStorage for credential and session storage via storage.js.
  * 
  * @file js/auth/auth.js
  * @module auth
  */
 
-// TODO: Import storage utilities when implemented
-// import { validateLogin as storageValidateLogin, setSession, getSession, clearSession } from '../utils/storage.js';
+import { 
+    validateLogin as storageValidateLogin, 
+    setSession, 
+    getSession, 
+    clearSession,
+    getOriginalUsername
+} from '../utils/storage.js';
+
+/**
+ * Result object returned by login operations
+ * @typedef {Object} LoginResult
+ * @property {boolean} success - Whether the operation succeeded
+ * @property {string} message - Human-readable result message
+ */
 
 /**
  * Attempt to log in a user
+ * Validates credentials against stored users and creates a session on success
  * @param {string} username - The username to authenticate
  * @param {string} password - The password to validate
- * @returns {Object} Result object with success status and message
+ * @returns {LoginResult} Result object with success status and message
  * @example
  * const result = login('designer1', 'password123');
- * // { success: true, message: 'Login successful' }
+ * if (result.success) {
+ *     // Navigate to dashboard
+ * }
  */
 function login(username, password) {
-    // TODO: Implement actual login logic
-    // - Validate credentials against storage
-    // - Create session on success
-    // - Return appropriate result
+    // Validate input types
+    if (typeof username !== 'string' || typeof password !== 'string') {
+        return {
+            success: false,
+            message: 'Please enter both username and password'
+        };
+    }
+    
+    // Trim username (password is case-sensitive, keep as is)
+    const trimmedUsername = username.trim();
+    
+    // Check for empty fields
+    if (trimmedUsername.length === 0) {
+        return {
+            success: false,
+            message: 'Username is required'
+        };
+    }
+    
+    if (password.length === 0) {
+        return {
+            success: false,
+            message: 'Password is required'
+        };
+    }
+    
+    // Validate credentials against storage
+    const isValid = storageValidateLogin(trimmedUsername, password);
+    
+    if (!isValid) {
+        return {
+            success: false,
+            message: 'Invalid username or password'
+        };
+    }
+    
+    // Get the original username with correct casing
+    const originalUsername = getOriginalUsername(trimmedUsername);
+    
+    // Create session
+    const sessionCreated = setSession(originalUsername || trimmedUsername);
+    
+    if (!sessionCreated) {
+        return {
+            success: false,
+            message: 'Failed to create session. Please try again.'
+        };
+    }
     
     return {
-        success: false,
-        message: 'Login not yet implemented'
+        success: true,
+        message: 'Login successful'
     };
 }
 
 /**
  * Log out the current user
- * Clears the active session
+ * Clears the active session from localStorage
+ * @returns {boolean} True if logout was successful
  */
 function logout() {
-    // TODO: Clear session from storage
-    console.info('[Auth] User logged out');
+    return clearSession();
 }
 
 /**
@@ -46,8 +105,7 @@ function logout() {
  * @returns {boolean} True if a valid session exists
  */
 function isLoggedIn() {
-    // TODO: Check session in storage
-    return false;
+    return getSession() !== null;
 }
 
 /**
@@ -55,8 +113,7 @@ function isLoggedIn() {
  * @returns {string|null} The username or null if not logged in
  */
 function getCurrentUser() {
-    // TODO: Get username from session
-    return null;
+    return getSession();
 }
 
 // Export for ES modules
