@@ -9,10 +9,11 @@
  */
 
 import { LoginView } from './views/LoginView.js';
-// import { DashboardView } from './views/DashboardView.js';
+import { DashboardView } from './views/DashboardView.js';
 // import { EditorView } from './views/EditorView.js';
-import { initializeStorage } from './utils/storage.js';
+import { initializeStorage, getAllDesigns, deleteDesign } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout } from './auth/auth.js';
+import { Toast } from './views/components/Toast.js';
 
 /**
  * Application state
@@ -89,50 +90,66 @@ function showDashboard() {
     const container = getAppContainer();
     if (!container) return;
     
-    // TODO: Replace with DashboardView when implemented
-    container.innerHTML = `
-        <header class="app-header">
-            <div class="app-logo">FurnishView</div>
-            <nav class="app-nav">
-                <div class="user-info">
-                    <span>Welcome, <strong>${escapeHtml(AppState.user || 'Designer')}</strong></span>
-                </div>
-                <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
-            </nav>
-        </header>
-        <main class="dashboard-container">
-            <div class="dashboard-header">
-                <h2 class="dashboard-title">My Designs</h2>
-                <div class="dashboard-actions">
-                    <button id="new-design-btn" class="btn btn-primary">+ New Design</button>
-                </div>
-            </div>
-            <div class="empty-state">
-                <div class="empty-state-icon">📐</div>
-                <h3 class="empty-state-title">No Designs Yet</h3>
-                <p class="empty-state-message">
-                    Create your first room design to get started.
-                </p>
-                <button id="create-first-btn" class="btn btn-primary">Create First Design</button>
-            </div>
-        </main>
-    `;
+    // Get user's designs
+    const userDesigns = getAllDesigns(AppState.user);
     
-    // Attach logout handler
-    const logoutBtn = container.querySelector('#logout-btn');
-    logoutBtn?.addEventListener('click', handleLogout);
-    
-    // Attach new design handlers (placeholder for now)
-    const newDesignBtn = container.querySelector('#new-design-btn');
-    const createFirstBtn = container.querySelector('#create-first-btn');
-    
-    newDesignBtn?.addEventListener('click', () => {
-        showEditor(null); // null = new design
+    // Create and render dashboard view
+    const dashboardView = new DashboardView({
+        onNewDesign: handleNewDesign,
+        onOpenDesign: handleOpenDesign,
+        onDeleteDesign: handleDeleteDesign,
+        onLogout: handleLogout,
+        onCompareDesigns: handleCompareDesigns
     });
     
-    createFirstBtn?.addEventListener('click', () => {
-        showEditor(null);
-    });
+    dashboardView.render(container, userDesigns, AppState.user);
+    AppState.viewInstance = dashboardView;
+}
+
+/**
+ * Handle new design action
+ * @private
+ */
+function handleNewDesign() {
+    showEditor(null); // null = new design
+}
+
+/**
+ * Handle open design action
+ * @param {string} designId - ID of design to open
+ * @private
+ */
+function handleOpenDesign(designId) {
+    if (!designId) return;
+    showEditor(designId);
+}
+
+/**
+ * Handle delete design action
+ * @param {string} designId - ID of design to delete
+ * @private
+ */
+function handleDeleteDesign(designId) {
+    if (!designId) return;
+    
+    const success = deleteDesign(designId);
+    
+    if (success) {
+        Toast.success('Design deleted successfully');
+        // Refresh the dashboard
+        showDashboard();
+    } else {
+        Toast.error('Failed to delete design');
+    }
+}
+
+/**
+ * Handle compare designs action
+ * @private
+ */
+function handleCompareDesigns() {
+    // Innovation feature - implementation coming in later task
+    Toast.info('Compare Designs feature coming soon!');
 }
 
 /**
@@ -187,6 +204,7 @@ function handleLogout() {
     logout();
     AppState.user = null;
     AppState.currentDesignId = null;
+    Toast.info('You have been logged out');
     showLogin();
 }
 

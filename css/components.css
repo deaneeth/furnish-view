@@ -606,12 +606,54 @@
    Dashboard
    ========================================================================== */
 
-.dashboard-container {
-    flex: 1;
-    padding: var(--space-6);
+.dashboard {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg);
 }
 
 .dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-6);
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.dashboard-brand {
+    display: flex;
+    align-items: center;
+}
+
+.dashboard-logo {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0;
+}
+
+.dashboard-user {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.dashboard-username {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.dashboard-main {
+    flex: 1;
+    padding: var(--space-6);
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.dashboard-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -620,38 +662,431 @@
 
 .dashboard-title {
     font-size: var(--text-2xl);
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
 }
 
-.dashboard-actions {
+.dashboard-buttons {
     display: flex;
     gap: var(--space-3);
 }
 
-.design-grid {
+/* Designs Grid */
+.designs-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: var(--space-6);
+}
+
+@media (max-width: 640px) {
+    .designs-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-actions {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-4);
+    }
+    
+    .dashboard-buttons {
+        width: 100%;
+    }
+    
+    .dashboard-buttons .btn {
+        flex: 1;
+    }
+}
+
+/* Design Card */
+.design-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.design-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.design-card-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    background-color: var(--bg);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+}
+
+.design-card-icon {
+    opacity: 0.5;
+}
+
+.design-card-content {
+    padding: var(--space-4);
+}
+
+.design-card-name {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 var(--space-1) 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.design-card-dimensions {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.design-card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.design-card-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border);
+    background-color: var(--bg);
+}
+
+.design-card-actions .btn-primary {
+    flex: 1;
+}
+
+/* Button outline variant for delete */
+.btn-danger-outline {
+    background-color: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+    background-color: var(--danger);
+    color: var(--text-inverse);
+}
+
+.btn-outline {
+    background-color: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.btn-outline:hover:not(:disabled) {
+    background-color: var(--bg);
+    border-color: var(--border-strong);
+}
+
+/* Empty State */
+.dashboard-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
 }
 
 .empty-state {
     text-align: center;
-    padding: var(--space-12) var(--space-6);
-    color: var(--text-secondary);
+    padding: var(--space-8);
 }
 
-.empty-state-icon {
-    font-size: 48px;
-    margin-bottom: var(--space-4);
+.empty-icon {
+    color: var(--text-muted);
     opacity: 0.5;
+    margin-bottom: var(--space-4);
 }
 
-.empty-state-title {
+.empty-title {
     font-size: var(--text-lg);
     font-weight: 600;
     color: var(--text);
-    margin-bottom: var(--space-2);
+    margin: 0 0 var(--space-2) 0;
 }
 
-.empty-state-message {
-    margin-bottom: var(--space-6);
+.empty-description {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-6) 0;
 }
+
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+
+.toast-container {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    pointer-events: auto;
+    max-width: 360px;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.toast-visible {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast-hiding {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+.toast-icon {
+    flex-shrink: 0;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--text);
+    line-height: 1.4;
+}
+
+.toast-dismiss {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.toast-dismiss:hover {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+/* Toast Type Variants */
+.toast-success {
+    border-left: 3px solid var(--success);
+}
+
+.toast-success .toast-icon {
+    color: var(--success);
+}
+
+.toast-error {
+    border-left: 3px solid var(--danger);
+}
+
+.toast-error .toast-icon {
+    color: var(--danger);
+}
+
+.toast-info {
+    border-left: 3px solid var(--info);
+}
+
+.toast-info .toast-icon {
+    color: var(--info);
+}
+
+.toast-warning {
+    border-left: 3px solid var(--warning);
+}
+
+.toast-warning .toast-icon {
+    color: var(--warning);
+}
+
+/* Mobile toast positioning */
+@media (max-width: 480px) {
+    .toast-container {
+        bottom: var(--space-4);
+        right: var(--space-4);
+        left: var(--space-4);
+    }
+    
+    .toast {
+        max-width: 100%;
+    }
+}
+
+
+/* ==========================================================================
+   Modal
+   ========================================================================== */
+
+body.modal-open {
+    overflow: hidden;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0);
+    z-index: 900;
+    transition: background-color 0.2s ease;
+}
+
+.modal-backdrop-visible {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 910;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.modal-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-hiding {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-card {
+    width: 100%;
+    max-width: 440px;
+    background-color: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+    transform: scale(0.95);
+    transition: transform 0.2s ease;
+}
+
+.modal-visible .modal-card {
+    transform: scale(1);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+.modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.modal-close:hover {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+.modal-body {
+    padding: var(--space-6);
+}
+
+.modal-body p {
+    margin: 0 0 var(--space-3) 0;
+}
+
+.modal-body p:last-child {
+    margin-bottom: 0;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border);
+    background-color: var(--bg);
+}
+
+
+/* ==========================================================================
+   App Header (for editor and other views)
+   ========================================================================== */
+
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-6);
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.app-logo {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.app-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.user-info {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
