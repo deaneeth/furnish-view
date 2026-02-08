@@ -2,7 +2,7 @@
  * FurnishView — Sidebar Component
  * 
  * Renders room settings, colour pickers, and furniture property editors.
- * Context-sensitive: shows room properties or selected furniture properties.
+ * Context-sensitive: shows room properties always, furniture properties when selected.
  * 
  * @file js/views/components/Sidebar.js
  * @module views/components/Sidebar
@@ -25,20 +25,361 @@ class Sidebar {
     } = {}) {
         this.onRoomChange = onRoomChange;
         this.onFurnitureChange = onFurnitureChange;
+        
+        this.container = null;
+        this.design = null;
+        this.selectedFurniture = null;
+        
+        // Section collapse states
+        this.roomSectionCollapsed = false;
+        this.furnitureSectionCollapsed = false;
     }
     
     /**
      * Render the sidebar into a container
      * @param {HTMLElement} container - The DOM element to render into
-     * @param {Object} room - Current room data
+     * @param {Object} design - Current design with room data
      * @param {Object|null} selectedFurniture - Currently selected furniture item
      */
-    render(container, room = null, selectedFurniture = null) {
-        // TODO: Implement sidebar rendering
-        // - Room properties section (dimensions, colours)
-        // - Selected furniture section (if any selected)
-        // - Colour pickers for wall/floor/furniture
-        container.innerHTML = '<p>Sidebar placeholder</p>';
+    render(container, design = null, selectedFurniture = null) {
+        if (!container) return;
+        
+        this.container = container;
+        this.design = design;
+        this.selectedFurniture = selectedFurniture;
+        
+        const room = design?.room;
+        
+        container.innerHTML = `
+            <div class="sidebar-content">
+                <!-- Room Properties Section -->
+                <section class="sidebar-section">
+                    <button 
+                        type="button" 
+                        class="sidebar-section-header"
+                        aria-expanded="${!this.roomSectionCollapsed}"
+                        data-section="room"
+                    >
+                        <span class="sidebar-section-title">Room Properties</span>
+                        <span class="sidebar-section-toggle">${this.roomSectionCollapsed ? '▶' : '▼'}</span>
+                    </button>
+                    <div class="sidebar-section-body ${this.roomSectionCollapsed ? 'collapsed' : ''}">
+                        ${this._renderRoomProperties(room)}
+                    </div>
+                </section>
+                
+                <!-- Furniture Properties Section -->
+                <section class="sidebar-section ${!selectedFurniture ? 'disabled' : ''}">
+                    <button 
+                        type="button" 
+                        class="sidebar-section-header"
+                        aria-expanded="${!this.furnitureSectionCollapsed}"
+                        data-section="furniture"
+                        ${!selectedFurniture ? 'disabled' : ''}
+                    >
+                        <span class="sidebar-section-title">Furniture Properties</span>
+                        <span class="sidebar-section-toggle">${this.furnitureSectionCollapsed ? '▶' : '▼'}</span>
+                    </button>
+                    <div class="sidebar-section-body ${this.furnitureSectionCollapsed ? 'collapsed' : ''}">
+                        ${this._renderFurnitureProperties(selectedFurniture)}
+                    </div>
+                </section>
+            </div>
+        `;
+        
+        this._bindEvents();
+    }
+    
+    /**
+     * Render room properties form fields
+     * @param {Object} room - Room model data
+     * @returns {string} HTML string
+     * @private
+     */
+    _renderRoomProperties(room) {
+        if (!room) {
+            return '<p class="sidebar-empty">No room data available</p>';
+        }
+        
+        return `
+            <div class="property-group">
+                <label class="property-label">Dimensions</label>
+                <div class="property-value dimensions-display">
+                    <span>${room.width || 0}m</span> × 
+                    <span>${room.depth || 0}m</span> × 
+                    <span>${room.height || 0}m</span>
+                </div>
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="room-wall-colour">Wall Colour</label>
+                <div class="colour-picker-row">
+                    <input 
+                        type="color" 
+                        id="room-wall-colour"
+                        class="colour-picker"
+                        value="${room.wallColour || '#E8E0D4'}"
+                        data-property="wallColour"
+                        data-target="room"
+                    />
+                    <span class="colour-value">${room.wallColour || '#E8E0D4'}</span>
+                </div>
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="room-floor-colour">Floor Colour</label>
+                <div class="colour-picker-row">
+                    <input 
+                        type="color" 
+                        id="room-floor-colour"
+                        class="colour-picker"
+                        value="${room.floorColour || '#8B7355'}"
+                        data-property="floorColour"
+                        data-target="room"
+                    />
+                    <span class="colour-value">${room.floorColour || '#8B7355'}</span>
+                </div>
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label">Room Shape</label>
+                <div class="property-value">${this._formatShape(room.shape)}</div>
+            </div>
+        `;
+    }
+    
+    /**
+     * Render furniture properties form fields
+     * @param {Object} furniture - Furniture item data
+     * @returns {string} HTML string
+     * @private
+     */
+    _renderFurnitureProperties(furniture) {
+        if (!furniture) {
+            return '<p class="sidebar-empty">Select a furniture item to edit its properties</p>';
+        }
+        
+        return `
+            <div class="property-group">
+                <label class="property-label">Type</label>
+                <div class="property-value furniture-type-display">
+                    ${this._escapeHtml(furniture.type || 'Unknown')}
+                </div>
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="furniture-width">Width (m)</label>
+                <input 
+                    type="number" 
+                    id="furniture-width"
+                    class="property-input"
+                    value="${furniture.width || 0}"
+                    min="0.1"
+                    max="10"
+                    step="0.1"
+                    data-property="width"
+                    data-target="furniture"
+                />
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="furniture-depth">Depth (m)</label>
+                <input 
+                    type="number" 
+                    id="furniture-depth"
+                    class="property-input"
+                    value="${furniture.depth || 0}"
+                    min="0.1"
+                    max="10"
+                    step="0.1"
+                    data-property="depth"
+                    data-target="furniture"
+                />
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="furniture-height">Height (m)</label>
+                <input 
+                    type="number" 
+                    id="furniture-height"
+                    class="property-input"
+                    value="${furniture.height || 0}"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    data-property="height"
+                    data-target="furniture"
+                />
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="furniture-colour">Colour</label>
+                <div class="colour-picker-row">
+                    <input 
+                        type="color" 
+                        id="furniture-colour"
+                        class="colour-picker"
+                        value="${furniture.colour || '#5C4033'}"
+                        data-property="colour"
+                        data-target="furniture"
+                    />
+                    <span class="colour-value">${furniture.colour || '#5C4033'}</span>
+                </div>
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label" for="furniture-rotation">Rotation (°)</label>
+                <div class="rotation-input-row">
+                    <input 
+                        type="range" 
+                        id="furniture-rotation-slider"
+                        class="rotation-slider"
+                        value="${furniture.rotation || 0}"
+                        min="0"
+                        max="360"
+                        step="15"
+                        data-property="rotation"
+                        data-target="furniture"
+                    />
+                    <input 
+                        type="number" 
+                        id="furniture-rotation"
+                        class="rotation-input"
+                        value="${furniture.rotation || 0}"
+                        min="0"
+                        max="360"
+                        step="1"
+                        data-property="rotation"
+                        data-target="furniture"
+                    />
+                </div>
+            </div>
+            
+            <div class="property-group">
+                <label class="property-label">Position</label>
+                <div class="property-value position-display">
+                    X: ${(furniture.x || 0).toFixed(2)}m, Y: ${(furniture.y || 0).toFixed(2)}m
+                </div>
+            </div>
+        `;
+    }
+    
+    /**
+     * Format room shape for display
+     * @param {string} shape - Room shape type
+     * @returns {string} Formatted display text
+     * @private
+     */
+    _formatShape(shape) {
+        if (!shape) return 'Unknown';
+        return shape.charAt(0).toUpperCase() + shape.slice(1).replace('-', ' ');
+    }
+    
+    /**
+     * Bind event listeners
+     * @private
+     */
+    _bindEvents() {
+        if (!this.container) return;
+        
+        // Section collapse toggles
+        const headers = this.container.querySelectorAll('.sidebar-section-header');
+        headers.forEach(header => {
+            header.addEventListener('click', () => {
+                const section = header.dataset.section;
+                this._toggleSection(section);
+            });
+        });
+        
+        // Colour pickers
+        const colourPickers = this.container.querySelectorAll('.colour-picker');
+        colourPickers.forEach(picker => {
+            picker.addEventListener('input', (e) => {
+                this._handlePropertyChange(e.target);
+                // Update adjacent colour value display
+                const valueEl = e.target.parentElement?.querySelector('.colour-value');
+                if (valueEl) {
+                    valueEl.textContent = e.target.value;
+                }
+            });
+        });
+        
+        // Number inputs
+        const numberInputs = this.container.querySelectorAll('.property-input');
+        numberInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                this._handlePropertyChange(e.target);
+            });
+        });
+        
+        // Rotation slider + input sync
+        const rotationSlider = this.container.querySelector('#furniture-rotation-slider');
+        const rotationInput = this.container.querySelector('#furniture-rotation');
+        
+        if (rotationSlider && rotationInput) {
+            rotationSlider.addEventListener('input', (e) => {
+                rotationInput.value = e.target.value;
+                this._handlePropertyChange(e.target);
+            });
+            
+            rotationInput.addEventListener('change', (e) => {
+                rotationSlider.value = e.target.value;
+                this._handlePropertyChange(e.target);
+            });
+        }
+    }
+    
+    /**
+     * Toggle section collapse state
+     * @param {string} section - Section identifier ('room' or 'furniture')
+     * @private
+     */
+    _toggleSection(section) {
+        if (section === 'room') {
+            this.roomSectionCollapsed = !this.roomSectionCollapsed;
+        } else if (section === 'furniture') {
+            this.furnitureSectionCollapsed = !this.furnitureSectionCollapsed;
+        }
+        
+        // Re-render to apply toggle
+        this.render(this.container, this.design, this.selectedFurniture);
+    }
+    
+    /**
+     * Handle property change from form input
+     * @param {HTMLElement} input - Input element that changed
+     * @private
+     */
+    _handlePropertyChange(input) {
+        const property = input.dataset.property;
+        const target = input.dataset.target;
+        let value = input.value;
+        
+        // Parse numeric values
+        if (input.type === 'number' || input.type === 'range') {
+            value = parseFloat(value);
+            if (isNaN(value)) return;
+        }
+        
+        // Trigger appropriate callback
+        if (target === 'room') {
+            this.onRoomChange(property, value);
+        } else if (target === 'furniture') {
+            this.onFurnitureChange(property, value);
+        }
+    }
+    
+    /**
+     * Escape HTML to prevent XSS
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     * @private
+     */
+    _escapeHtml(text) {
+        if (typeof text !== 'string') return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 
