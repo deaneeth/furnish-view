@@ -11,8 +11,8 @@
 import { LoginView } from './views/LoginView.js';
 import { DashboardView } from './views/DashboardView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
-// import { EditorView } from './views/EditorView.js';
-import { initializeStorage, getAllDesigns, deleteDesign, saveDesign } from './utils/storage.js';
+import { EditorView } from './views/EditorView.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
@@ -199,31 +199,63 @@ function showEditor(designId) {
     const container = getAppContainer();
     if (!container) return;
     
-    // TODO: Replace with EditorView when implemented
-    container.innerHTML = `
-        <header class="app-header">
-            <div class="app-logo">FurnishView</div>
-            <nav class="app-nav">
-                <button id="back-to-dashboard" class="btn btn-ghost btn-sm">← Back to Dashboard</button>
-                <div class="user-info">
-                    <span>${escapeHtml(AppState.user || 'Designer')}</span>
-                </div>
-            </nav>
-        </header>
-        <main class="editor-container" style="flex: 1; display: flex; align-items: center; justify-content: center;">
-            <div class="text-center">
-                <h2 style="margin-bottom: var(--space-4);">Editor View</h2>
-                <p class="text-secondary" style="margin-bottom: var(--space-4);">
-                    ${designId ? `Editing design: ${escapeHtml(designId)}` : 'Creating new design'}
-                </p>
-                <p class="text-muted">Editor implementation coming in Task 2.1</p>
-            </div>
-        </main>
-    `;
+    // Load design from storage
+    let design = null;
+    if (designId) {
+        design = loadDesign(designId);
+        if (!design) {
+            Toast.error('Design not found');
+            showDashboard();
+            return;
+        }
+    }
     
-    // Attach back button handler
-    const backBtn = container.querySelector('#back-to-dashboard');
-    backBtn?.addEventListener('click', showDashboard);
+    // Create EditorView instance
+    const editorView = new EditorView({
+        onSave: (updatedDesign) => handleSaveDesign(updatedDesign),
+        onBack: () => showDashboard(),
+        onToggle3D: (view) => handleToggle3D(view)
+    });
+    
+    editorView.render(container, design);
+    AppState.viewInstance = editorView;
+}
+
+/**
+ * Handle save design from editor
+ * @param {Object} design - Design to save
+ * @private
+ */
+function handleSaveDesign(design) {
+    if (!design) {
+        Toast.error('No design to save');
+        return;
+    }
+    
+    // Convert to JSON if needed
+    const designJSON = typeof design.toJSON === 'function' 
+        ? design.toJSON() 
+        : design;
+    
+    const success = saveDesign(designJSON);
+    
+    if (success) {
+        Toast.success('Design saved successfully');
+    } else {
+        Toast.error('Failed to save design');
+    }
+}
+
+/**
+ * Handle 2D/3D view toggle
+ * @param {string} view - '2d' or '3d'
+ * @private
+ */
+function handleToggle3D(view) {
+    // Will be fully implemented in Phase 3
+    if (view === '3d') {
+        Toast.info('3D view coming in Phase 3');
+    }
 }
 
 /**
