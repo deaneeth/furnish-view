@@ -18,6 +18,7 @@ import { furnitureCatalogue } from '../data/furnitureCatalogue.js';
 import { Renderer2D } from '../graphics/Renderer2D.js';
 import { ColourManager } from '../graphics/ColourManager.js';
 import { CanvasController } from '../controllers/CanvasController.js';
+import { Modal } from './components/Modal.js';
 
 /**
  * EditorView class
@@ -332,14 +333,27 @@ class EditorView {
     
     /**
      * Handle back navigation
+     * Shows Save/Discard/Cancel modal if there are unsaved changes
      * @private
      */
     _handleBack() {
         if (this.hasUnsavedChanges) {
-            const confirmed = window.confirm(
-                'You have unsaved changes. Are you sure you want to leave?'
-            );
-            if (!confirmed) return;
+            Modal.confirmUnsavedChanges({
+                onSave: () => {
+                    // Save first, then navigate back
+                    this._handleSave();
+                    this.onBack();
+                },
+                onDiscard: () => {
+                    // Discard changes and navigate back
+                    this.hasUnsavedChanges = false;
+                    this.onBack();
+                },
+                onCancel: () => {
+                    // Stay in editor, do nothing
+                }
+            });
+            return;
         }
         
         this.onBack();
