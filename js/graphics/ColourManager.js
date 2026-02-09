@@ -96,6 +96,62 @@ const ColourManager = {
             Math.round(rgb.g * (1 - amount)),
             Math.round(rgb.b * (1 - amount))
         );
+    },
+    
+    /**
+     * Apply colour to room wall or floor
+     * Updates the Room model's wallColour or floorColour property
+     * 
+     * @param {Object} design - Design object containing room data
+     * @param {string} target - Target surface: 'wall' or 'floor'
+     * @param {string} colour - Hex colour string (e.g., '#E8E0D4')
+     * @returns {boolean} True if colour was applied successfully
+     */
+    applyRoomColour(design, target, colour) {
+        if (!design?.room || !colour) {
+            return false;
+        }
+        
+        // Validate target
+        if (target !== 'wall' && target !== 'floor') {
+            return false;
+        }
+        
+        // Validate colour format
+        if (!/^#[0-9A-Fa-f]{6}$/.test(colour)) {
+            return false;
+        }
+        
+        // Apply colour to appropriate property
+        if (target === 'wall') {
+            design.room.wallColour = colour;
+        } else {
+            design.room.floorColour = colour;
+        }
+        
+        return true;
+    },
+    
+    /**
+     * Apply colour to a furniture item
+     * Updates the FurnitureItem's colour property
+     * 
+     * @param {Object} item - Furniture item object
+     * @param {string} colour - Hex colour string (e.g., '#5C4033')
+     * @returns {boolean} True if colour was applied successfully
+     */
+    applyFurnitureColour(item, colour) {
+        if (!item || !colour) {
+            return false;
+        }
+        
+        // Validate colour format
+        if (!/^#[0-9A-Fa-f]{6}$/.test(colour)) {
+            return false;
+        }
+        
+        item.colour = colour;
+        return true;
     }
 };
 
