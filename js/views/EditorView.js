@@ -594,6 +594,16 @@ class EditorView {
     }
     
     /**
+     * Update status bar furniture count
+     * @private
+     */
+    _updateStatusFurnitureCount() {
+        // Furniture count can be displayed in the status bar if needed
+        // For now, this is a no-op placeholder that prevents the console error
+        // Could be extended to show: "Furniture: X items" in the status bar
+    }
+    
+    /**
      * Set the selected furniture item
      * @param {Object|null} furniture - Furniture item to select
      */
