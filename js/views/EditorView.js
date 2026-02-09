@@ -16,6 +16,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { Toast } from './components/Toast.js';
 import { furnitureCatalogue } from '../data/furnitureCatalogue.js';
 import { Renderer2D } from '../graphics/Renderer2D.js';
+import { CanvasController } from '../controllers/CanvasController.js';
 
 /**
  * EditorView class
@@ -47,6 +48,7 @@ class EditorView {
         this.toolbar = null;
         this.sidebar = null;
         this.renderer2d = null;
+        this.canvasController = null;
         
         // DOM references
         this.container = null;
@@ -297,7 +299,12 @@ class EditorView {
         
         // Escape - Deselect / cancel placing
         if (e.key === 'Escape') {
+            // Cancel placing mode if active
+            this.canvasController?.cancelPlacing();
+            
+            // Deselect furniture
             this.selectedFurniture = null;
+            this.canvasController?.deselectAll?.();
             this.toolbar?.clearSelection();
             this._updateSidebar();
             this._updateStatusSelection();
@@ -339,9 +346,11 @@ class EditorView {
      * @private
      */
     _handleFurnitureSelect(type) {
-        // Change canvas cursor to crosshair when placing mode is active
-        if (this.canvas) {
-            this.canvas.classList.toggle('placing', !!type);
+        // Delegate placing mode to controller
+        if (type) {
+            this.canvasController?.startPlacing(type);
+        } else {
+            this.canvasController?.cancelPlacing();
         }
     }
     
@@ -350,8 +359,11 @@ class EditorView {
      * @private
      */
     _handleUndo() {
-        // Will be implemented with CanvasController in Task 2.3
-        Toast.info('Undo - will be implemented in Task 2.3');
+        if (this.canvasController?.undo()) {
+            Toast.success('Undo successful');
+        } else {
+            Toast.info('Nothing to undo');
+        }
     }
     
     /**
@@ -359,13 +371,11 @@ class EditorView {
      * @private
      */
     _handleDelete() {
-        if (!this.selectedFurniture) {
+        if (this.canvasController?.deleteSelected()) {
+            Toast.success('Furniture deleted');
+        } else {
             Toast.info('No furniture selected');
-            return;
         }
-        
-        // Will be implemented with CanvasController in Task 2.3
-        Toast.info('Delete - will be implemented in Task 2.3');
     }
     
     /**
@@ -424,8 +434,53 @@ class EditorView {
             this.renderer2d.setFurniture(this.design.furniture);
         }
         
+        // Initialize CanvasController for interactions
+        this.canvasController = new CanvasController({
+            canvas: this.canvas,
+            renderer2D: this.renderer2d,
+            design: this.design,
+            onFurnitureSelect: (item) => this._onControllerFurnitureSelect(item),
+            onFurnitureUpdate: () => this._onControllerFurnitureUpdate(),
+            onDesignChange: () => this._onControllerDesignChange()
+        });
+        
         // Initial render
         this._renderCanvas();
+    }
+    
+    /**
+     * Handle furniture selection from controller
+     * @param {FurnitureItem|null} item - Selected item or null
+     * @private
+     */
+    _onControllerFurnitureSelect(item) {
+        this.selectedFurniture = item;
+        
+        // Highlight the furniture type in toolbar when selected on canvas
+        this.toolbar?.setSelectedType(item?.type || null);
+        
+        this._updateSidebar();
+        this._updateStatusSelection();
+    }
+    
+    /**
+     * Handle furniture position update from controller
+     * @private
+     */
+    _onControllerFurnitureUpdate() {
+        this.hasUnsavedChanges = true;
+        this._updateSidebar();
+    }
+    
+    /**
+     * Handle design change from controller (furniture added/removed)
+     * @private
+     */
+    _onControllerDesignChange() {
+        this.hasUnsavedChanges = true;
+        this._renderCanvas();
+        this._updateSidebar();
+        this._updateStatusFurnitureCount();
     }
     
     /**
@@ -591,11 +646,15 @@ class EditorView {
         // Remove keyboard listener
         document.removeEventListener('keydown', this._boundHandleKeyDown);
         
+        // Clean up controller
+        this.canvasController?.destroy();
+        
         // Clear references
         this.container = null;
         this.canvas = null;
         this.toolbar = null;
         this.sidebar = null;
+        this.canvasController = null;
     }
 }
 
