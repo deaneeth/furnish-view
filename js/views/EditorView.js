@@ -16,6 +16,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { Toast } from './components/Toast.js';
 import { furnitureCatalogue } from '../data/furnitureCatalogue.js';
 import { Renderer2D } from '../graphics/Renderer2D.js';
+import { ColourManager } from '../graphics/ColourManager.js';
 import { CanvasController } from '../controllers/CanvasController.js';
 
 /**
@@ -58,6 +59,10 @@ class EditorView {
         
         // Bound methods for event cleanup
         this._boundHandleKeyDown = this._handleKeyDown.bind(this);
+        
+        // Debounce timers for Toast notifications
+        this._colourToastTimer = null;
+        this._furnitureColourToastTimer = null;
     }
     
     /**
@@ -399,6 +404,16 @@ class EditorView {
         this.design.room[property] = value;
         this.hasUnsavedChanges = true;
         
+        // Debounced Toast notification for colour changes
+        // Only shows after user stops dragging for 500ms
+        if (property === 'wallColour' || property === 'floorColour') {
+            clearTimeout(this._colourToastTimer);
+            this._colourToastTimer = setTimeout(() => {
+                const target = property === 'wallColour' ? 'Wall' : 'Floor';
+                Toast.success(`${target} colour updated`);
+            }, 500);
+        }
+        
         // Re-render canvas with updated room
         this._renderCanvas();
         this._updateStatusRoomInfo();
@@ -510,6 +525,16 @@ class EditorView {
         
         this.selectedFurniture[property] = value;
         this.hasUnsavedChanges = true;
+        
+        // Debounced Toast notification for colour changes
+        // Only shows after user stops dragging for 500ms
+        if (property === 'colour') {
+            clearTimeout(this._furnitureColourToastTimer);
+            const typeName = this._formatFurnitureType(this.selectedFurniture.type);
+            this._furnitureColourToastTimer = setTimeout(() => {
+                Toast.success(`${typeName} colour updated`);
+            }, 500);
+        }
         
         // Re-render canvas with updated furniture
         this._renderCanvas();
@@ -647,6 +672,20 @@ class EditorView {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    /**
+     * Format furniture type for display
+     * @param {string} type - Furniture type (e.g., 'dining-table')
+     * @returns {string} Formatted type (e.g., 'Dining Table')
+     * @private
+     */
+    _formatFurnitureType(type) {
+        if (!type || typeof type !== 'string') return 'Furniture';
+        return type
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
     }
     
     /**
