@@ -1282,6 +1282,20 @@ body.modal-open {
     background-color: var(--bg);
 }
 
+/* Three-button footer for Save/Discard/Cancel dialogs */
+.modal-footer-three-btn {
+    justify-content: space-between;
+}
+
+.modal-footer-three-btn .modal-cancel-btn {
+    margin-right: auto;
+}
+
+.modal-footer-three-btn .modal-discard-btn,
+.modal-footer-three-btn .modal-save-btn {
+    margin-left: 0;
+}
+
 
 /* ==========================================================================
    App Header (for editor and other views)

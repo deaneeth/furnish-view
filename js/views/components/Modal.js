@@ -350,6 +350,115 @@ const Modal = {
             hideCancel: true,
             onConfirm: onClose
         });
+    },
+    
+    /**
+     * Show unsaved changes confirmation modal
+     * Three options: Save, Discard, Cancel
+     * @param {Object} options - Configuration options
+     * @param {Function} options.onSave - Callback when Save is clicked
+     * @param {Function} options.onDiscard - Callback when Discard is clicked
+     * @param {Function} [options.onCancel] - Callback when Cancel is clicked
+     */
+    confirmUnsavedChanges({ onSave, onDiscard, onCancel = () => {} }) {
+        // Close any existing modal first
+        if (this.currentModal) {
+            this.close();
+        }
+        
+        // Store previously focused element for restoration
+        previouslyFocusedElement = document.activeElement;
+        
+        // Create backdrop
+        modalBackdrop = document.createElement('div');
+        modalBackdrop.className = 'modal-backdrop';
+        modalBackdrop.setAttribute('aria-hidden', 'true');
+        
+        // Create modal
+        this.currentModal = document.createElement('div');
+        this.currentModal.className = 'modal';
+        this.currentModal.setAttribute('role', 'dialog');
+        this.currentModal.setAttribute('aria-modal', 'true');
+        this.currentModal.setAttribute('aria-labelledby', 'modal-title');
+        
+        this.currentModal.innerHTML = `
+            <div class="modal-card">
+                <header class="modal-header">
+                    <h2 id="modal-title" class="modal-title">Unsaved Changes</h2>
+                    <button type="button" class="modal-close" aria-label="Close modal">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </header>
+                <div class="modal-body">
+                    <p>You have unsaved changes. What would you like to do?</p>
+                </div>
+                <footer class="modal-footer modal-footer-three-btn">
+                    <button type="button" class="btn btn-secondary modal-cancel-btn">Cancel</button>
+                    <button type="button" class="btn btn-ghost modal-discard-btn">Discard</button>
+                    <button type="button" class="btn btn-primary modal-save-btn">Save</button>
+                </footer>
+            </div>
+        `;
+        
+        // Add to DOM
+        document.body.appendChild(modalBackdrop);
+        document.body.appendChild(this.currentModal);
+        document.body.classList.add('modal-open');
+        
+        // Trigger animation
+        requestAnimationFrame(() => {
+            modalBackdrop.classList.add('modal-backdrop-visible');
+            this.currentModal.classList.add('modal-visible');
+        });
+        
+        // Button handlers
+        const saveBtn = this.currentModal.querySelector('.modal-save-btn');
+        const discardBtn = this.currentModal.querySelector('.modal-discard-btn');
+        const cancelBtn = this.currentModal.querySelector('.modal-cancel-btn');
+        const closeBtn = this.currentModal.querySelector('.modal-close');
+        
+        saveBtn?.addEventListener('click', () => {
+            this.close();
+            if (typeof onSave === 'function') onSave();
+        });
+        
+        discardBtn?.addEventListener('click', () => {
+            this.close();
+            if (typeof onDiscard === 'function') onDiscard();
+        });
+        
+        cancelBtn?.addEventListener('click', () => {
+            this.close();
+            if (typeof onCancel === 'function') onCancel();
+        });
+        
+        closeBtn?.addEventListener('click', () => {
+            this.close();
+            if (typeof onCancel === 'function') onCancel();
+        });
+        
+        // Backdrop click = cancel
+        modalBackdrop?.addEventListener('click', () => {
+            this.close();
+            if (typeof onCancel === 'function') onCancel();
+        });
+        
+        // Keyboard events
+        keydownHandler = (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.close();
+                if (typeof onCancel === 'function') onCancel();
+            }
+        };
+        document.addEventListener('keydown', keydownHandler);
+        
+        // Focus save button
+        requestAnimationFrame(() => {
+            saveBtn?.focus();
+        });
     }
 };
 
