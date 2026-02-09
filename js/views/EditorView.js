@@ -15,6 +15,7 @@ import { Toolbar } from './components/Toolbar.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Toast } from './components/Toast.js';
 import { furnitureCatalogue } from '../data/furnitureCatalogue.js';
+import { Renderer2D } from '../graphics/Renderer2D.js';
 
 /**
  * EditorView class
@@ -45,6 +46,7 @@ class EditorView {
         // Component instances
         this.toolbar = null;
         this.sidebar = null;
+        this.renderer2d = null;
         
         // DOM references
         this.container = null;
@@ -221,6 +223,9 @@ class EditorView {
             onRoomChange: (property, value) => this._handleRoomChange(property, value),
             onFurnitureChange: (property, value) => this._handleFurnitureChange(property, value)
         });
+        
+        // Initialize 2D Renderer
+        this._initializeRenderer();
     }
     
     /**
@@ -385,8 +390,58 @@ class EditorView {
         this.hasUnsavedChanges = true;
         
         // Re-render canvas with updated room
-        // Will trigger canvas redraw in Task 2.2
+        this._renderCanvas();
         this._updateStatusRoomInfo();
+    }
+    
+    /**
+     * Initialize the 2D renderer for the canvas
+     * @private
+     */
+    _initializeRenderer() {
+        if (!this.canvas) return;
+        
+        // Get canvas dimensions
+        const width = this.canvas.width || 800;
+        const height = this.canvas.height || 600;
+        
+        // Create Renderer2D instance
+        this.renderer2d = new Renderer2D({
+            canvas: this.canvas,
+            width: width,
+            height: height,
+            showGrid: true,
+            showDimensions: true
+        });
+        
+        // Set initial room data if available
+        if (this.design?.room) {
+            this.renderer2d.setRoom(this.design.room);
+        }
+        
+        // Set furniture if available
+        if (this.design?.furniture) {
+            this.renderer2d.setFurniture(this.design.furniture);
+        }
+        
+        // Initial render
+        this._renderCanvas();
+    }
+    
+    /**
+     * Render the 2D canvas
+     * @private
+     */
+    _renderCanvas() {
+        if (!this.renderer2d || !this.design) return;
+        
+        // Update renderer with current data
+        this.renderer2d.setRoom(this.design.room);
+        this.renderer2d.setFurniture(this.design.furniture || []);
+        this.renderer2d.setSelectedId(this.selectedFurniture?.id || null);
+        
+        // Trigger render
+        this.renderer2d.render();
     }
     
     /**
@@ -402,7 +457,7 @@ class EditorView {
         this.hasUnsavedChanges = true;
         
         // Re-render canvas with updated furniture
-        // Will trigger canvas redraw in Task 2.2
+        this._renderCanvas();
     }
     
     /**
