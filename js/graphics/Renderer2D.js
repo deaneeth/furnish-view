@@ -160,6 +160,29 @@ class Renderer2D {
     }
     
     /**
+     * Set ghost preview for placing mode
+     * Shows a semi-transparent preview of furniture at mouse position
+     * 
+     * @param {Object|null} preview - Preview configuration or null to clear
+     * @param {string} preview.type - Furniture type
+     * @param {number} preview.x - World X position (meters)
+     * @param {number} preview.y - World Y position (meters)
+     * @param {number} preview.width - Furniture width (meters)
+     * @param {number} preview.depth - Furniture depth (meters)
+     * @param {string} preview.colour - Furniture colour
+     */
+    setGhostPreview(preview) {
+        this.ghostPreview = preview;
+    }
+    
+    /**
+     * Clear ghost preview
+     */
+    clearGhostPreview() {
+        this.ghostPreview = null;
+    }
+    
+    /**
      * Calculate scale factor and offset based on room and canvas dimensions.
      * 
      * ALGORITHM: Coordinate Scaling
@@ -315,6 +338,11 @@ class Renderer2D {
             if (selectedItem) {
                 this._drawSelection(selectedItem);
             }
+        }
+        
+        // Step 6: Draw ghost preview (for placing mode)
+        if (this.ghostPreview) {
+            this._drawGhostPreview();
         }
     }
     
@@ -705,6 +733,50 @@ class Renderer2D {
         
         // Bottom-right handle
         ctx.fillRect(x + scaledWidth - halfHandle, y + scaledDepth - halfHandle, handleSize, handleSize);
+        
+        ctx.restore();
+    }
+    
+    /**
+     * Draw ghost preview for furniture placement.
+     * Shows a semi-transparent preview at the current mouse position.
+     * 
+     * @private
+     */
+    _drawGhostPreview() {
+        if (!this.ctx || !this.ghostPreview || !this.room) return;
+        
+        const ctx = this.ctx;
+        const preview = this.ghostPreview;
+        
+        // Get canvas position from world position
+        const pos = this.worldToCanvas(preview.x, preview.y);
+        
+        // Scale furniture dimensions
+        const scaledWidth = this.scaleSize(preview.width);
+        const scaledDepth = this.scaleSize(preview.depth);
+        
+        ctx.save();
+        
+        // Set transparency for ghost effect
+        ctx.globalAlpha = 0.5;
+        
+        // Draw fill
+        ctx.fillStyle = preview.colour || '#5C4033';
+        ctx.fillRect(pos.x, pos.y, scaledWidth, scaledDepth);
+        
+        // Draw border (dashed for preview)
+        ctx.strokeStyle = RENDER_COLOURS.SELECTION;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(pos.x, pos.y, scaledWidth, scaledDepth);
+        
+        // Draw label
+        if (scaledWidth >= RENDER_CONFIG.MIN_LABEL_SIZE && scaledDepth >= RENDER_CONFIG.MIN_LABEL_SIZE) {
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 0.8;
+            this._drawFurnitureLabel(pos.x, pos.y, scaledWidth, scaledDepth, preview.type);
+        }
         
         ctx.restore();
     }

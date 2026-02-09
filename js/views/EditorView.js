@@ -16,6 +16,8 @@ import { Sidebar } from './components/Sidebar.js';
 import { Toast } from './components/Toast.js';
 import { furnitureCatalogue } from '../data/furnitureCatalogue.js';
 import { Renderer2D } from '../graphics/Renderer2D.js';
+import { ColourManager } from '../graphics/ColourManager.js';
+import { CanvasController } from '../controllers/CanvasController.js';
 
 /**
  * EditorView class
@@ -47,6 +49,7 @@ class EditorView {
         this.toolbar = null;
         this.sidebar = null;
         this.renderer2d = null;
+        this.canvasController = null;
         
         // DOM references
         this.container = null;
@@ -56,6 +59,10 @@ class EditorView {
         
         // Bound methods for event cleanup
         this._boundHandleKeyDown = this._handleKeyDown.bind(this);
+        
+        // Debounce timers for Toast notifications
+        this._colourToastTimer = null;
+        this._furnitureColourToastTimer = null;
     }
     
     /**
@@ -297,7 +304,12 @@ class EditorView {
         
         // Escape - Deselect / cancel placing
         if (e.key === 'Escape') {
+            // Cancel placing mode if active
+            this.canvasController?.cancelPlacing();
+            
+            // Deselect furniture
             this.selectedFurniture = null;
+            this.canvasController?.deselectAll?.();
             this.toolbar?.clearSelection();
             this._updateSidebar();
             this._updateStatusSelection();
@@ -339,9 +351,11 @@ class EditorView {
      * @private
      */
     _handleFurnitureSelect(type) {
-        // Change canvas cursor to crosshair when placing mode is active
-        if (this.canvas) {
-            this.canvas.classList.toggle('placing', !!type);
+        // Delegate placing mode to controller
+        if (type) {
+            this.canvasController?.startPlacing(type);
+        } else {
+            this.canvasController?.cancelPlacing();
         }
     }
     
@@ -350,8 +364,11 @@ class EditorView {
      * @private
      */
     _handleUndo() {
-        // Will be implemented with CanvasController in Task 2.3
-        Toast.info('Undo - will be implemented in Task 2.3');
+        if (this.canvasController?.undo()) {
+            Toast.success('Undo successful');
+        } else {
+            Toast.info('Nothing to undo');
+        }
     }
     
     /**
@@ -359,13 +376,11 @@ class EditorView {
      * @private
      */
     _handleDelete() {
-        if (!this.selectedFurniture) {
+        if (this.canvasController?.deleteSelected()) {
+            Toast.success('Furniture deleted');
+        } else {
             Toast.info('No furniture selected');
-            return;
         }
-        
-        // Will be implemented with CanvasController in Task 2.3
-        Toast.info('Delete - will be implemented in Task 2.3');
     }
     
     /**
@@ -388,6 +403,16 @@ class EditorView {
         
         this.design.room[property] = value;
         this.hasUnsavedChanges = true;
+        
+        // Debounced Toast notification for colour changes
+        // Only shows after user stops dragging for 500ms
+        if (property === 'wallColour' || property === 'floorColour') {
+            clearTimeout(this._colourToastTimer);
+            this._colourToastTimer = setTimeout(() => {
+                const target = property === 'wallColour' ? 'Wall' : 'Floor';
+                Toast.success(`${target} colour updated`);
+            }, 500);
+        }
         
         // Re-render canvas with updated room
         this._renderCanvas();
@@ -424,8 +449,53 @@ class EditorView {
             this.renderer2d.setFurniture(this.design.furniture);
         }
         
+        // Initialize CanvasController for interactions
+        this.canvasController = new CanvasController({
+            canvas: this.canvas,
+            renderer2D: this.renderer2d,
+            design: this.design,
+            onFurnitureSelect: (item) => this._onControllerFurnitureSelect(item),
+            onFurnitureUpdate: () => this._onControllerFurnitureUpdate(),
+            onDesignChange: () => this._onControllerDesignChange()
+        });
+        
         // Initial render
         this._renderCanvas();
+    }
+    
+    /**
+     * Handle furniture selection from controller
+     * @param {FurnitureItem|null} item - Selected item or null
+     * @private
+     */
+    _onControllerFurnitureSelect(item) {
+        this.selectedFurniture = item;
+        
+        // Highlight the furniture type in toolbar when selected on canvas
+        this.toolbar?.setSelectedType(item?.type || null);
+        
+        this._updateSidebar();
+        this._updateStatusSelection();
+    }
+    
+    /**
+     * Handle furniture position update from controller
+     * @private
+     */
+    _onControllerFurnitureUpdate() {
+        this.hasUnsavedChanges = true;
+        this._updateSidebar();
+    }
+    
+    /**
+     * Handle design change from controller (furniture added/removed)
+     * @private
+     */
+    _onControllerDesignChange() {
+        this.hasUnsavedChanges = true;
+        this._renderCanvas();
+        this._updateSidebar();
+        this._updateStatusFurnitureCount();
     }
     
     /**
@@ -455,6 +525,16 @@ class EditorView {
         
         this.selectedFurniture[property] = value;
         this.hasUnsavedChanges = true;
+        
+        // Debounced Toast notification for colour changes
+        // Only shows after user stops dragging for 500ms
+        if (property === 'colour') {
+            clearTimeout(this._furnitureColourToastTimer);
+            const typeName = this._formatFurnitureType(this.selectedFurniture.type);
+            this._furnitureColourToastTimer = setTimeout(() => {
+                Toast.success(`${typeName} colour updated`);
+            }, 500);
+        }
         
         // Re-render canvas with updated furniture
         this._renderCanvas();
@@ -539,6 +619,16 @@ class EditorView {
     }
     
     /**
+     * Update status bar furniture count
+     * @private
+     */
+    _updateStatusFurnitureCount() {
+        // Furniture count can be displayed in the status bar if needed
+        // For now, this is a no-op placeholder that prevents the console error
+        // Could be extended to show: "Furniture: X items" in the status bar
+    }
+    
+    /**
      * Set the selected furniture item
      * @param {Object|null} furniture - Furniture item to select
      */
@@ -585,17 +675,35 @@ class EditorView {
     }
     
     /**
+     * Format furniture type for display
+     * @param {string} type - Furniture type (e.g., 'dining-table')
+     * @returns {string} Formatted type (e.g., 'Dining Table')
+     * @private
+     */
+    _formatFurnitureType(type) {
+        if (!type || typeof type !== 'string') return 'Furniture';
+        return type
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+    
+    /**
      * Clean up event listeners and resources
      */
     destroy() {
         // Remove keyboard listener
         document.removeEventListener('keydown', this._boundHandleKeyDown);
         
+        // Clean up controller
+        this.canvasController?.destroy();
+        
         // Clear references
         this.container = null;
         this.canvas = null;
         this.toolbar = null;
         this.sidebar = null;
+        this.canvasController = null;
     }
 }
 

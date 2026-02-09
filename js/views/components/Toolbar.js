@@ -236,6 +236,15 @@ class Toolbar {
     }
     
     /**
+     * Set the selected furniture type (for canvas selection feedback)
+     * @param {string|null} type - Furniture type to highlight, or null to clear
+     */
+    setSelectedType(type) {
+        this.selectedType = type || null;
+        this._updateButtonStates();
+    }
+    
+    /**
      * Get the currently selected furniture type
      * @returns {string|null} Selected furniture type or null
      */
