@@ -16,6 +16,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { Toast } from './components/Toast.js';
 import { furnitureCatalogue } from '../data/furnitureCatalogue.js';
 import { Renderer2D } from '../graphics/Renderer2D.js';
+import { Renderer3D } from '../graphics/Renderer3D.js';
 import { ColourManager } from '../graphics/ColourManager.js';
 import { CanvasController } from '../controllers/CanvasController.js';
 import { Modal } from './components/Modal.js';
@@ -50,6 +51,7 @@ class EditorView {
         this.toolbar = null;
         this.sidebar = null;
         this.renderer2d = null;
+        this.renderer3d = null;
         this.canvasController = null;
         
         // DOM references
@@ -60,6 +62,7 @@ class EditorView {
         
         // Bound methods for event cleanup
         this._boundHandleKeyDown = this._handleKeyDown.bind(this);
+        this._boundHandleResize = this._handleResize.bind(this);
         
         // Debounce timers for Toast notifications
         this._colourToastTimer = null;
@@ -267,6 +270,9 @@ class EditorView {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', this._boundHandleKeyDown);
+
+        // Window resize — update both 2D and 3D renderers
+        window.addEventListener('resize', this._boundHandleResize);
     }
     
     /**
@@ -398,12 +404,36 @@ class EditorView {
     }
     
     /**
-     * Handle export as PNG
+     * Handle export as PNG.
+     *
+     * Captures the current view (2D canvas or 3D scene) and triggers
+     * a browser download of the resulting PNG image.
+     *
      * @private
      */
     _handleExport() {
-        // Innovation feature - export canvas as image
-        Toast.info('Export PNG - will be implemented in Phase 3');
+        let dataUrl = null;
+
+        if (this.currentView === '3d' && this.renderer3d) {
+            dataUrl = this.renderer3d.captureScreenshot();
+        } else if (this.canvas) {
+            dataUrl = this.canvas.toDataURL('image/png');
+        }
+
+        if (!dataUrl) {
+            Toast.error('Unable to capture screenshot');
+            return;
+        }
+
+        // Create a temporary anchor to trigger download
+        const link = document.createElement('a');
+        const designName = this.design?.name || 'design';
+        const safeName = designName.replace(/[^a-zA-Z0-9_-]/g, '_');
+        link.download = `${safeName}_${this.currentView}.png`;
+        link.href = dataUrl;
+        link.click();
+
+        Toast.success(`Exported ${this.currentView.toUpperCase()} view as PNG`);
     }
     
     /**
@@ -431,6 +461,9 @@ class EditorView {
         // Re-render canvas with updated room
         this._renderCanvas();
         this._updateStatusRoomInfo();
+
+        // Synchronise 3D scene if active
+        this._sync3DScene();
     }
     
     /**
@@ -510,6 +543,9 @@ class EditorView {
         this._renderCanvas();
         this._updateSidebar();
         this._updateStatusFurnitureCount();
+
+        // Synchronise 3D scene if active
+        this._sync3DScene();
     }
     
     /**
@@ -552,35 +588,127 @@ class EditorView {
         
         // Re-render canvas with updated furniture
         this._renderCanvas();
+
+        // Synchronise 3D scene if active
+        this._sync3DScene();
     }
     
     /**
-     * Switch between 2D and 3D views
+     * Switch between 2D and 3D views.
+     *
+     * - TO 3D: lazy-creates Renderer3D, builds scene from current design,
+     *   hides 2D canvas, disables toolbar.
+     * - TO 2D: shows 2D canvas, re-renders it, re-enables toolbar.
+     *
      * @param {string} view - '2d' or '3d'
      */
     switchView(view) {
         if (view !== '2d' && view !== '3d') return;
-        
+        if (view === this.currentView) return;
+
         this.currentView = view;
-        
+
         // Update toggle button states
         this.viewToggleBtns?.forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === view);
         });
-        
-        // Toggle canvas/3D container visibility
-        if (this.canvasContainer) {
-            this.canvasContainer.hidden = (view === '3d');
+
+        if (view === '3d') {
+            this._switchTo3D();
+        } else {
+            this._switchTo2D();
         }
-        if (this.view3DContainer) {
-            this.view3DContainer.hidden = (view === '2d');
-        }
-        
+
         // Update status bar
         this._updateStatusView();
-        
+
         // Trigger callback
         this.onToggle3D(view);
+    }
+
+    /**
+     * Activate 3D view.
+     *
+     * Lazy-creates the Renderer3D on first use, then rebuilds the scene
+     * from the current design state. Hides 2D canvas and disables the
+     * toolbar to prevent furniture placement.
+     *
+     * @private
+     */
+    _switchTo3D() {
+        // Hide 2D, show 3D
+        if (this.canvasContainer) this.canvasContainer.hidden = true;
+        if (this.view3DContainer) this.view3DContainer.hidden = false;
+
+        // Lazy-initialise Renderer3D
+        if (!this.renderer3d && this.view3DContainer) {
+            this.renderer3d = new Renderer3D({
+                container: this.view3DContainer
+            });
+        }
+
+        // Build / rebuild the scene with the latest design data
+        this._sync3DScene();
+
+        // Disable toolbar — can't place furniture in 3D
+        this.toolbar?.setDisabled(true);
+
+        // Cancel any active placing mode
+        this.canvasController?.cancelPlacing();
+    }
+
+    /**
+     * Activate 2D view.
+     *
+     * Re-shows the 2D canvas, re-renders it (in case colours changed
+     * while in 3D view), and re-enables the toolbar.
+     *
+     * @private
+     */
+    _switchTo2D() {
+        // Hide 3D, show 2D
+        if (this.view3DContainer) this.view3DContainer.hidden = true;
+        if (this.canvasContainer) this.canvasContainer.hidden = false;
+
+        // Re-render 2D canvas to pick up any model changes
+        this._renderCanvas();
+
+        // Re-enable toolbar
+        this.toolbar?.setDisabled(false);
+    }
+
+    /**
+     * Synchronise the 3D scene with the current design model.
+     *
+     * Only acts when the 3D renderer exists and the current view is 3D.
+     * Safe to call at any time — it is a no-op otherwise.
+     *
+     * @private
+     */
+    _sync3DScene() {
+        if (this.currentView !== '3d' || !this.renderer3d || !this.design) return;
+        this.renderer3d.updateFromDesign(this.design);
+    }
+
+    /**
+     * Handle window resize for both 2D and 3D renderers.
+     * @private
+     */
+    _handleResize() {
+        // 3D renderer has its own resize logic
+        if (this.renderer3d) {
+            this.renderer3d.handleResize();
+        }
+
+        // 2D canvas: update dimensions and re-render
+        if (this.canvas && this.canvasContainer) {
+            const rect = this.canvasContainer.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                this._renderCanvas();
+            }
+        }
     }
     
     /**
@@ -706,11 +834,18 @@ class EditorView {
      * Clean up event listeners and resources
      */
     destroy() {
-        // Remove keyboard listener
+        // Remove event listeners
         document.removeEventListener('keydown', this._boundHandleKeyDown);
+        window.removeEventListener('resize', this._boundHandleResize);
         
         // Clean up controller
         this.canvasController?.destroy();
+
+        // Dispose 3D renderer to free WebGL resources
+        if (this.renderer3d) {
+            this.renderer3d.dispose();
+            this.renderer3d = null;
+        }
         
         // Clear references
         this.container = null;
