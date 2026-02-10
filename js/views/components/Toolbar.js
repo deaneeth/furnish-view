@@ -251,6 +251,35 @@ class Toolbar {
     getSelectedType() {
         return this.selectedType;
     }
+
+    /**
+     * Enable or disable the toolbar.
+     *
+     * When disabled, pointer events are blocked and the toolbar is
+     * visually dimmed. Any active furniture selection is cleared to
+     * prevent stale placing mode when re-enabled.
+     *
+     * @param {boolean} disabled - True to disable, false to enable
+     */
+    setDisabled(disabled) {
+        if (!this.container) return;
+
+        // Only disable the furniture selection grid, not the action
+        // buttons (Undo, Delete, Export) — those remain usable in 3D.
+        const furnitureGrid = this.container.querySelector('.toolbar-furniture-grid');
+        const sectionTitle = this.container.querySelector('.toolbar-section-title');
+
+        if (disabled) {
+            furnitureGrid?.classList.add('disabled');
+            sectionTitle?.classList.add('disabled');
+            furnitureGrid?.setAttribute('aria-disabled', 'true');
+            this.clearSelection();
+        } else {
+            furnitureGrid?.classList.remove('disabled');
+            sectionTitle?.classList.remove('disabled');
+            furnitureGrid?.removeAttribute('aria-disabled');
+        }
+    }
     
     /**
      * Escape HTML to prevent XSS
