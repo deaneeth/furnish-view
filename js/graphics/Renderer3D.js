@@ -149,9 +149,9 @@ class Renderer3D {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // Tone mapping for realistic material appearance
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        // Use default tone mapping — ACES compresses brightness
+        // too aggressively for interior scenes
+        this.renderer.toneMapping = THREE.NoToneMapping;
 
         // Append canvas to container
         this.container.appendChild(this.renderer.domElement);
@@ -168,19 +168,29 @@ class Renderer3D {
      * Shadow camera bounds are set generously and adjusted when room data arrives.
      */
     setupLighting() {
-        // Ambient light — base illumination across all surfaces
+        // Ambient light — white at 0.6 provides even 60% base fill
+        // across all surfaces so interior walls are never pure black
         this.ambientLight = new THREE.AmbientLight(
-            0x404040,
+            0xffffff,
             THREE_CONFIG.ambientLightIntensity
         );
         this.scene.add(this.ambientLight);
 
+        // Hemisphere light — soft sky/ground gradient for natural fill
+        this.hemisphereLight = new THREE.HemisphereLight(
+            0xddeeff, // Sky colour (cool white-blue)
+            0x8B7355, // Ground colour (warm floor tone)
+            0.3       // Subtle intensity
+        );
+        this.scene.add(this.hemisphereLight);
+
         // Directional light — creates shadows and visible shading
+        // Positioned to shine down into the room interior
         this.directionalLight = new THREE.DirectionalLight(
             0xffffff,
             THREE_CONFIG.directionalLightIntensity
         );
-        this.directionalLight.position.set(8, 12, 8);
+        this.directionalLight.position.set(3, 10, 5);
         this.directionalLight.castShadow = true;
 
         // Shadow map configuration
@@ -274,12 +284,16 @@ class Renderer3D {
         this.scene.add(rightWall);
         this.roomMeshes.add(rightWall);
 
-        // --- Update directional light position and shadow bounds for this room ---
+        // --- Update directional light to shine into the room interior ---
+        // Position above room centre, slightly offset toward front for
+        // even coverage of interior surfaces
         this.directionalLight.position.set(
-            roomWidth,
+            roomWidth * 0.3,
             roomHeight * 3,
-            roomDepth
+            roomDepth * 0.5
         );
+        this.directionalLight.target.position.set(0, 0, 0);
+        this.directionalLight.target.updateMatrixWorld();
         this.directionalLight.shadow.camera.left = -(roomWidth + 2);
         this.directionalLight.shadow.camera.right = roomWidth + 2;
         this.directionalLight.shadow.camera.top = roomDepth + 2;
@@ -569,6 +583,10 @@ class Renderer3D {
         if (this.ambientLight) {
             this.scene.remove(this.ambientLight);
             this.ambientLight = null;
+        }
+        if (this.hemisphereLight) {
+            this.scene.remove(this.hemisphereLight);
+            this.hemisphereLight = null;
         }
         if (this.directionalLight) {
             this.scene.remove(this.directionalLight);
