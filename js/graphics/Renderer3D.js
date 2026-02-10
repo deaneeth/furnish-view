@@ -214,14 +214,11 @@ class Renderer3D {
     /**
      * Build the room geometry from room data.
      *
-     * Creates a floor (PlaneGeometry rotated flat) and three walls
-     * (back, left, right as thin BoxGeometry). The front wall is omitted
-     * so the camera can see inside the room.
+     * Detects the room shape and delegates to the appropriate builder.
+     * After building the geometry, updates lighting and camera to match
+     * the room dimensions.
      *
-     * All surfaces use MeshStandardMaterial with the room's colour scheme.
-     * Floor receives shadows; walls cast and receive shadows.
-     *
-     * @param {Object} room - Room data with width, depth, height, wallColour, floorColour
+     * @param {Object} room - Room data with width, depth, height, shape, wallColour, floorColour
      */
     buildRoom(room) {
         if (!room) {
@@ -233,23 +230,15 @@ class Renderer3D {
         const roomHeight = room.height || 2.8;
         const wallColour = room.wallColour || '#E8E0D4';
         const floorColour = room.floorColour || '#8B7355';
+        const isLShaped = room.shape === 'l-shaped';
 
-        // --- Floor ---
-        const floorGeometry = new THREE.PlaneGeometry(roomWidth, roomDepth);
         const floorMaterial = new THREE.MeshStandardMaterial({
             color: floorColour,
             roughness: 0.8,
             metalness: 0.1,
             side: THREE.DoubleSide
         });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2; // Rotate to lie flat on XZ plane
-        floor.position.y = 0;
-        floor.receiveShadow = true;
-        this.scene.add(floor);
-        this.roomMeshes.add(floor);
 
-        // Shared wall material
         const wallMaterial = new THREE.MeshStandardMaterial({
             color: wallColour,
             roughness: 0.7,
@@ -257,36 +246,13 @@ class Renderer3D {
             side: THREE.DoubleSide
         });
 
-        // --- Back wall (far end, along X axis at -depth/2) ---
-        const backWallGeometry = new THREE.BoxGeometry(roomWidth, roomHeight, WALL_THICKNESS);
-        const backWall = new THREE.Mesh(backWallGeometry, wallMaterial.clone());
-        backWall.position.set(0, roomHeight / 2, -roomDepth / 2);
-        backWall.castShadow = true;
-        backWall.receiveShadow = true;
-        this.scene.add(backWall);
-        this.roomMeshes.add(backWall);
-
-        // --- Left wall (along Z axis at -width/2) ---
-        const leftWallGeometry = new THREE.BoxGeometry(WALL_THICKNESS, roomHeight, roomDepth);
-        const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial.clone());
-        leftWall.position.set(-roomWidth / 2, roomHeight / 2, 0);
-        leftWall.castShadow = true;
-        leftWall.receiveShadow = true;
-        this.scene.add(leftWall);
-        this.roomMeshes.add(leftWall);
-
-        // --- Right wall (along Z axis at +width/2) ---
-        const rightWallGeometry = new THREE.BoxGeometry(WALL_THICKNESS, roomHeight, roomDepth);
-        const rightWall = new THREE.Mesh(rightWallGeometry, wallMaterial.clone());
-        rightWall.position.set(roomWidth / 2, roomHeight / 2, 0);
-        rightWall.castShadow = true;
-        rightWall.receiveShadow = true;
-        this.scene.add(rightWall);
-        this.roomMeshes.add(rightWall);
+        if (isLShaped) {
+            this._buildLShapedRoom(roomWidth, roomDepth, roomHeight, floorMaterial, wallMaterial);
+        } else {
+            this._buildRectangularRoom(roomWidth, roomDepth, roomHeight, floorMaterial, wallMaterial);
+        }
 
         // --- Update directional light to shine into the room interior ---
-        // Position above room centre, slightly offset toward front for
-        // even coverage of interior surfaces
         this.directionalLight.position.set(
             roomWidth * 0.3,
             roomHeight * 3,
@@ -307,6 +273,148 @@ class Renderer3D {
             roomDepth * 1.5
         );
         this.camera.lookAt(0, 0, 0);
+    }
+
+    /**
+     * Build a rectangular room (floor + 3 walls, front open).
+     *
+     * @param {number} w - Room width
+     * @param {number} d - Room depth
+     * @param {number} h - Room height
+     * @param {THREE.Material} floorMat - Floor material
+     * @param {THREE.Material} wallMat - Wall material
+     * @private
+     */
+    _buildRectangularRoom(w, d, h, floorMat, wallMat) {
+        // Floor
+        const floorGeo = new THREE.PlaneGeometry(w, d);
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+        this.roomMeshes.add(floor);
+
+        // Back wall
+        this._addWallSegment(-w / 2, -d / 2, w / 2, -d / 2, h, wallMat);
+        // Left wall
+        this._addWallSegment(-w / 2, -d / 2, -w / 2, d / 2, h, wallMat);
+        // Right wall
+        this._addWallSegment(w / 2, -d / 2, w / 2, d / 2, h, wallMat);
+    }
+
+    /**
+     * Build an L-shaped room.
+     *
+     * The L-shape matches the 2D renderer convention:
+     *   cutWidth  = 40 % of width  (removed from the right)
+     *   cutDepth  = 40 % of depth  (removed from the bottom / front)
+     *
+     * 2D world-space vertices (origin top-left):
+     *   P0(0,0)  P1(W,0)
+     *   P2(W, D-cD)  P3(W-cW, D-cD)
+     *   P4(W-cW, D)  P5(0, D)
+     *
+     * These are re-centred to 3D space where (0,0,0) is the bounding-box
+     * centre so that the room sits naturally at the scene origin.
+     *
+     * @param {number} w  - Full bounding width
+     * @param {number} d  - Full bounding depth
+     * @param {number} h  - Room height
+     * @param {THREE.Material} floorMat
+     * @param {THREE.Material} wallMat
+     * @private
+     */
+    _buildLShapedRoom(w, d, h, floorMat, wallMat) {
+        const cutW = w * 0.4;
+        const cutD = d * 0.4;
+
+        // Half-dimensions for centring
+        const hw = w / 2;
+        const hd = d / 2;
+
+        // L-shape vertices centred on origin (X = left/right, Z = back/front).
+        // Listed counter-clockwise starting from back-left.
+        //
+        //  P0 -------- P1        (back wall)
+        //  |            |
+        //  |            P2--P3   (step)
+        //  |                |
+        //  P5 ----------- P4    (front wall segments)
+        //
+        const pts = [
+            { x: -hw,          z: -hd },           // P0  back-left
+            { x:  hw,          z: -hd },           // P1  back-right
+            { x:  hw,          z: -hd + (d - cutD)}, // P2  right step top
+            { x:  hw - cutW,   z: -hd + (d - cutD)}, // P3  inner corner top
+            { x:  hw - cutW,   z:  hd },           // P4  inner corner bottom
+            { x: -hw,          z:  hd }            // P5  front-left
+        ];
+
+        // --- Floor (use THREE.Shape on XZ plane) ---
+        const shape = new THREE.Shape();
+        shape.moveTo(pts[0].x, pts[0].z);
+        for (let i = 1; i < pts.length; i++) {
+            shape.lineTo(pts[i].x, pts[i].z);
+        }
+        shape.closePath();
+
+        const floorGeo = new THREE.ShapeGeometry(shape);
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        // ShapeGeometry lies on XY; rotate so Y → up, shape normal → Y
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+        this.roomMeshes.add(floor);
+
+        // --- Walls (omit front-left→back-left edge to keep the room open) ---
+        // Back wall:      P0 → P1
+        this._addWallSegment(pts[0].x, pts[0].z, pts[1].x, pts[1].z, h, wallMat);
+        // Right upper:    P1 → P2
+        this._addWallSegment(pts[1].x, pts[1].z, pts[2].x, pts[2].z, h, wallMat);
+        // Inner step hor: P2 → P3
+        this._addWallSegment(pts[2].x, pts[2].z, pts[3].x, pts[3].z, h, wallMat);
+        // Inner step vert:P3 → P4
+        this._addWallSegment(pts[3].x, pts[3].z, pts[4].x, pts[4].z, h, wallMat);
+        // Left wall:      P0 → P5   (back-left to front-left)
+        this._addWallSegment(pts[0].x, pts[0].z, pts[5].x, pts[5].z, h, wallMat);
+    }
+
+    /**
+     * Create a single wall segment between two XZ points.
+     *
+     * Uses BoxGeometry oriented along the segment direction. The wall is
+     * WALL_THICKNESS deep and `height` tall.
+     *
+     * @param {number} x1 - Start X
+     * @param {number} z1 - Start Z
+     * @param {number} x2 - End X
+     * @param {number} z2 - End Z
+     * @param {number} height - Wall height
+     * @param {THREE.Material} material - Wall material (will be cloned)
+     * @private
+     */
+    _addWallSegment(x1, z1, x2, z2, height, material) {
+        const dx = x2 - x1;
+        const dz = z2 - z1;
+        const length = Math.sqrt(dx * dx + dz * dz);
+        if (length < 0.001) return; // degenerate segment
+
+        const angle = Math.atan2(dx, dz); // rotation around Y axis
+
+        const geo = new THREE.BoxGeometry(WALL_THICKNESS, height, length);
+        const wall = new THREE.Mesh(geo, material.clone());
+        wall.position.set(
+            (x1 + x2) / 2,
+            height / 2,
+            (z1 + z2) / 2
+        );
+        wall.rotation.y = angle;
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        this.scene.add(wall);
+        this.roomMeshes.add(wall);
     }
 
     /**

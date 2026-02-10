@@ -252,10 +252,8 @@ function handleSaveDesign(design) {
  * @private
  */
 function handleToggle3D(view) {
-    // Will be fully implemented in Phase 3
-    if (view === '3d') {
-        Toast.info('3D view coming in Phase 3');
-    }
+    // View switching is handled internally by EditorView.
+    // This hook is kept for potential app-level side-effects in later phases.
 }
 
 /**
