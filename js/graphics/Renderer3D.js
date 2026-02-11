@@ -352,16 +352,19 @@ class Renderer3D {
         ];
 
         // --- Floor (use THREE.Shape on XZ plane) ---
+        // IMPORTANT: ShapeGeometry lies on XY. After rotating -PI/2 around X,
+        // shape-Y maps to -Z in world space.  We negate the Z values so that
+        // shape point (x, -z, 0) → rotation → world (x, 0, z), aligning the
+        // floor polygon with the wall segments.
         const shape = new THREE.Shape();
-        shape.moveTo(pts[0].x, pts[0].z);
+        shape.moveTo(pts[0].x, -pts[0].z);
         for (let i = 1; i < pts.length; i++) {
-            shape.lineTo(pts[i].x, pts[i].z);
+            shape.lineTo(pts[i].x, -pts[i].z);
         }
         shape.closePath();
 
         const floorGeo = new THREE.ShapeGeometry(shape);
         const floor = new THREE.Mesh(floorGeo, floorMat);
-        // ShapeGeometry lies on XY; rotate so Y → up, shape normal → Y
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = 0;
         floor.receiveShadow = true;
