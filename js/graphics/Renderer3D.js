@@ -8,7 +8,7 @@
  * Scene structure:
  * - Floor: PlaneGeometry with MeshStandardMaterial, rotated to lie flat
  * - Walls: BoxGeometry (thin boxes) positioned at room edges (back, left, right)
- * - Furniture: BoxGeometry per item with MeshStandardMaterial, positioned via worldToThree()
+ * - Furniture: Composite THREE.Groups from FurnitureFactory3D with MeshStandardMaterial
  * - Lighting: AmbientLight (base illumination) + DirectionalLight (shadows/shading)
  * - Camera: PerspectiveCamera with OrbitControls for interactive orbit/zoom/pan
  *
@@ -23,6 +23,7 @@ import * as THREE from '../../lib/three.module.js';
 import { OrbitControls } from '../../lib/OrbitControls.js';
 import { worldToThree } from '../utils/scaleCalculator.js';
 import { THREE_CONFIG } from '../utils/constants.js';
+import FurnitureFactory3D from './FurnitureFactory3D.js';
 
 /**
  * Wall thickness in Three.js units (meters)
@@ -421,14 +422,19 @@ class Renderer3D {
     }
 
     /**
-     * Build furniture meshes from a furniture array.
+     * Build composite furniture meshes from a furniture array.
      *
-     * Each furniture item becomes a BoxGeometry with MeshStandardMaterial,
+     * Uses FurnitureFactory3D to create recognisable multi-mesh furniture
+     * (chairs with legs and backrests, tables with tops and legs, etc.)
+     * instead of plain BoxGeometry cubes.
+     *
+     * Each furniture item becomes a THREE.Group containing multiple meshes,
      * positioned in 3D space using the worldToThree() coordinate mapper.
-     * The furniture's 2D (x, y) position maps to Three.js (x, z),
-     * and the Y position is set to half the item height so it sits on the floor.
+     * The factory builds furniture centered at origin with base at y=0,
+     * so the group position.y is set to 0 (floor level).
      *
-     * Each mesh stores its furniture ID in userData for future click detection.
+     * Each group stores its furniture ID and type in userData for
+     * future click/raycasting detection.
      *
      * @param {Array<Object>} furnitureArray - Array of furniture item data
      */
@@ -451,18 +457,15 @@ class Renderer3D {
             }
 
             const itemWidth = item.width || 0.5;
-            const itemHeight = item.height || 0.85;
             const itemDepth = item.depth || 0.5;
             const itemColour = item.colour || '#5C4033';
 
-            // Create box mesh for this furniture piece
-            const geometry = new THREE.BoxGeometry(itemWidth, itemHeight, itemDepth);
-            const material = new THREE.MeshStandardMaterial({
-                color: itemColour,
-                roughness: 0.6,
-                metalness: 0.15
-            });
-            const mesh = new THREE.Mesh(geometry, material);
+            // Create composite furniture group from factory
+            const furnitureGroup = FurnitureFactory3D.createFurniture(
+                item.type,
+                { width: itemWidth, depth: itemDepth, height: item.height || 0.85 },
+                itemColour
+            );
 
             // Convert 2D layout position to 3D world position
             // item.x/item.y are in world meters from room origin (top-left in 2D)
@@ -474,27 +477,21 @@ class Renderer3D {
                 roomDepth
             );
 
-            mesh.position.set(
-                threePos.x,
-                itemHeight / 2,  // Bottom sits on floor (y=0)
-                threePos.z
-            );
+            // Position group — y=0 because furniture is built with base at floor
+            furnitureGroup.position.set(threePos.x, 0, threePos.z);
 
             // Apply rotation if present (convert degrees to radians, rotate around Y axis)
+            // Negative because Canvas rotation is clockwise, Three.js is counter-clockwise
             if (item.rotation && item.rotation !== 0) {
-                mesh.rotation.y = -(item.rotation * Math.PI) / 180;
+                furnitureGroup.rotation.y = -(item.rotation * Math.PI) / 180;
             }
 
-            // Shadow configuration
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+            // Store furniture ID and type for future click/raycasting detection
+            furnitureGroup.userData.furnitureId = item.id || '';
+            furnitureGroup.userData.furnitureType = item.type || 'unknown';
 
-            // Store furniture ID for future click/raycasting detection
-            mesh.userData.furnitureId = item.id || '';
-            mesh.userData.furnitureType = item.type || 'unknown';
-
-            this.scene.add(mesh);
-            this.furnitureMeshes.set(item.id, mesh);
+            this.scene.add(furnitureGroup);
+            this.furnitureMeshes.set(item.id, furnitureGroup);
         }
     }
 
@@ -547,17 +544,22 @@ class Renderer3D {
 
     /**
      * Clear all furniture meshes from the scene and dispose their resources.
+     * Handles both single meshes and Groups (from FurnitureFactory3D) by
+     * recursively traversing children to dispose all geometries and materials.
      * @private
      */
     _clearFurnitureMeshes() {
-        for (const [, mesh] of this.furnitureMeshes) {
-            this.scene.remove(mesh);
-            if (mesh.geometry) {
-                mesh.geometry.dispose();
-            }
-            if (mesh.material) {
-                mesh.material.dispose();
-            }
+        for (const [, meshOrGroup] of this.furnitureMeshes) {
+            this.scene.remove(meshOrGroup);
+            // Recursively dispose all geometries and materials in the group
+            meshOrGroup.traverse((child) => {
+                if (child.geometry) {
+                    child.geometry.dispose();
+                }
+                if (child.material) {
+                    child.material.dispose();
+                }
+            });
         }
         this.furnitureMeshes.clear();
     }
