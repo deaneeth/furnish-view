@@ -637,6 +637,48 @@
     text-transform: uppercase;
 }
 
+/* Colour Contrast Warning (Task 4B.1) */
+.colour-warning-icon {
+    display: none;
+    font-size: var(--text-base);
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.colour-warning-icon.colour-warning--active {
+    display: inline;
+    animation: fadeIn var(--transition);
+}
+
+.colour-suggest-btn {
+    display: none;
+    margin-top: var(--space-1);
+    padding: 0;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--warning);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color var(--transition-fast);
+}
+
+.colour-suggest-btn.colour-warning--active {
+    display: block;
+}
+
+.colour-suggest-btn:hover {
+    color: var(--primary);
+}
+
+.colour-suggest-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
 .rotation-input-row {
     display: flex;
     align-items: center;
