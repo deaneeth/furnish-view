@@ -3,10 +3,14 @@
  * 
  * Renders room settings, colour pickers, and furniture property editors.
  * Context-sensitive: shows room properties always, furniture properties when selected.
+ * Includes colour contrast validation (Task 4B.1) — warns on extreme colours.
  * 
  * @file js/views/components/Sidebar.js
  * @module views/components/Sidebar
  */
+
+import { ColourManager } from '../../graphics/ColourManager.js';
+import { Toast } from './Toast.js';
 
 /**
  * Sidebar component
@@ -33,6 +37,10 @@ class Sidebar {
         // Section collapse states
         this.roomSectionCollapsed = false;
         this.furnitureSectionCollapsed = false;
+        
+        // Track colour warning state per surface to prevent toast spam
+        // Only fire toast on safe → extreme transition, not every drag pixel
+        this._colourWarningActive = { wall: false, floor: false };
     }
     
     /**
@@ -121,9 +129,14 @@ class Sidebar {
                         value="${room.wallColour || '#E8E0D4'}"
                         data-property="wallColour"
                         data-target="room"
+                        data-surface="wall"
                     />
                     <span class="colour-value">${room.wallColour || '#E8E0D4'}</span>
+                    <span class="colour-warning-icon" id="wall-colour-warning" aria-label="Colour warning">⚠️</span>
                 </div>
+                <button type="button" class="colour-suggest-btn" id="wall-colour-suggest" data-surface="wall">
+                    Suggest better shade
+                </button>
             </div>
             
             <div class="property-group">
@@ -136,9 +149,14 @@ class Sidebar {
                         value="${room.floorColour || '#8B7355'}"
                         data-property="floorColour"
                         data-target="room"
+                        data-surface="floor"
                     />
                     <span class="colour-value">${room.floorColour || '#8B7355'}</span>
+                    <span class="colour-warning-icon" id="floor-colour-warning" aria-label="Colour warning">⚠️</span>
                 </div>
+                <button type="button" class="colour-suggest-btn" id="floor-colour-suggest" data-surface="floor">
+                    Suggest better shade
+                </button>
             </div>
             
             <div class="property-group">
@@ -291,16 +309,41 @@ class Sidebar {
             });
         });
         
-        // Colour pickers
+        // Colour pickers — apply immediately, then validate for extremes
         const colourPickers = this.container.querySelectorAll('.colour-picker');
         colourPickers.forEach(picker => {
             picker.addEventListener('input', (e) => {
+                // Apply colour immediately (Nielsen #3: user control)
                 this._handlePropertyChange(e.target);
                 // Update adjacent colour value display
                 const valueEl = e.target.parentElement?.querySelector('.colour-value');
                 if (valueEl) {
                     valueEl.textContent = e.target.value;
                 }
+                // Run contrast validation for room colour pickers
+                if (e.target.dataset.target === 'room') {
+                    this._validateColourPicker(e.target);
+                }
+            });
+        });
+        
+        // "Suggest better shade" buttons
+        const suggestBtns = this.container.querySelectorAll('.colour-suggest-btn');
+        suggestBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const surface = btn.dataset.surface;
+                const pickerId = surface === 'wall' ? 'room-wall-colour' : 'room-floor-colour';
+                const picker = this.container.querySelector(`#${pickerId}`);
+                if (!picker) return;
+                
+                const suggested = ColourManager.suggestBetterColour(picker.value, surface);
+                picker.value = suggested;
+                
+                // Trigger the same flow as manual colour change
+                const inputEvent = new Event('input', { bubbles: true });
+                picker.dispatchEvent(inputEvent);
+                
+                Toast.success('Applied suggested colour');
             });
         });
         
@@ -366,6 +409,45 @@ class Sidebar {
             this.onRoomChange(property, value);
         } else if (target === 'furniture') {
             this.onFurnitureChange(property, value);
+        }
+    }
+    
+    /**
+     * Validate a room colour picker value and show/hide warnings
+     * Checks if colour is too extreme and toggles warning icon + suggest button.
+     * Shows a non-blocking toast warning (Nielsen #3, #5).
+     * 
+     * @param {HTMLInputElement} picker - The colour picker input element
+     * @private
+     */
+    _validateColourPicker(picker) {
+        const surface = picker.dataset.surface;
+        if (!surface) return;
+        
+        const warningIconId = `${surface}-colour-warning`;
+        const suggestBtnId = `${surface}-colour-suggest`;
+        const warningIcon = this.container.querySelector(`#${warningIconId}`);
+        const suggestBtn = this.container.querySelector(`#${suggestBtnId}`);
+        
+        const result = ColourManager.isColourTooExtreme(picker.value);
+        const isExtreme = result.tooDark || result.tooLight;
+        const wasExtreme = this._colourWarningActive[surface] || false;
+        
+        if (isExtreme) {
+            // Show warning indicators
+            if (warningIcon) warningIcon.classList.add('colour-warning--active');
+            if (suggestBtn) suggestBtn.classList.add('colour-warning--active');
+            
+            // Only fire toast on transition from safe → extreme (prevents spam)
+            if (!wasExtreme) {
+                Toast.warning(result.warning);
+            }
+            this._colourWarningActive[surface] = true;
+        } else {
+            // Clear warning indicators
+            if (warningIcon) warningIcon.classList.remove('colour-warning--active');
+            if (suggestBtn) suggestBtn.classList.remove('colour-warning--active');
+            this._colourWarningActive[surface] = false;
         }
     }
     
