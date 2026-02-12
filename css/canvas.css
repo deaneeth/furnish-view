@@ -42,6 +42,10 @@
     cursor: grab;
 }
 
+.canvas-2d.rotating {
+    cursor: alias;
+}
+
 
 /* ==========================================================================
    Canvas Controls
