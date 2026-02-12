@@ -271,6 +271,12 @@ class Sidebar {
                         data-target="furniture"
                     />
                 </div>
+                <div class="quick-rotate-row">
+                    <button type="button" class="quick-rotate-btn" data-degrees="0">0°</button>
+                    <button type="button" class="quick-rotate-btn" data-degrees="90">90°</button>
+                    <button type="button" class="quick-rotate-btn" data-degrees="180">180°</button>
+                    <button type="button" class="quick-rotate-btn" data-degrees="270">270°</button>
+                </div>
             </div>
             
             <div class="property-group">
@@ -370,6 +376,24 @@ class Sidebar {
                 this._handlePropertyChange(e.target);
             });
         }
+        
+        // Quick-rotate preset buttons (Task 4B.2)
+        const quickRotateBtns = this.container.querySelectorAll('.quick-rotate-btn');
+        quickRotateBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const degrees = parseInt(btn.dataset.degrees, 10);
+                if (Number.isNaN(degrees)) return;
+                
+                // Update slider + input to match
+                if (rotationSlider) rotationSlider.value = degrees;
+                if (rotationInput) rotationInput.value = degrees;
+                
+                // Fire change via the rotation input element
+                if (rotationInput) {
+                    this._handlePropertyChange(rotationInput);
+                }
+            });
+        });
     }
     
     /**

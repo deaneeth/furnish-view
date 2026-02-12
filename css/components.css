@@ -700,6 +700,38 @@
     border-radius: var(--radius);
 }
 
+/* Quick-rotate preset buttons (Task 4B.2) */
+.quick-rotate-row {
+    display: flex;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+
+.quick-rotate-btn {
+    flex: 1;
+    padding: var(--space-1) 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.quick-rotate-btn:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--surface);
+}
+
+.quick-rotate-btn:active {
+    background: var(--primary);
+    color: var(--text-inverse);
+    border-color: var(--primary);
+}
+
 .dimensions-display {
     font-family: var(--font-mono);
 }

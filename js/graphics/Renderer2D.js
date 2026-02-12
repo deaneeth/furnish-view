@@ -36,6 +36,9 @@ const RENDER_COLOURS = {
     GRID_LABEL: '#999999',
     SELECTION: '#3B82F6',
     SELECTION_HANDLE: '#3B82F6',
+    ROTATION_HANDLE: '#2563EB',
+    ROTATION_BADGE_BG: 'rgba(37, 99, 235, 0.85)',
+    ROTATION_BADGE_TEXT: '#FFFFFF',
     FURNITURE_BORDER: 'rgba(0, 0, 0, 0.3)',
     FURNITURE_LABEL: '#FFFFFF',
     DIMENSION_LABEL: '#666666',
@@ -53,6 +56,10 @@ const RENDER_CONFIG = {
     SELECTION_BORDER_WIDTH: 2,
     SELECTION_DASH: [6, 4],
     HANDLE_SIZE: 8,
+    ROTATION_HANDLE_RADIUS: 8,
+    ROTATION_ARM_LENGTH: 24,
+    ROTATION_ARM_WIDTH: 1.5,
+    ROTATION_BADGE_FONT_SIZE: 10,
     LABEL_FONT_SIZE: 12,
     DIMENSION_FONT_SIZE: 11,
     MIN_LABEL_SIZE: 40 // Minimum furniture size to show label
@@ -1185,7 +1192,114 @@ class Renderer2D {
         // Bottom-right handle
         ctx.fillRect(x + scaledWidth - halfHandle, y + scaledDepth - halfHandle, handleSize, handleSize);
         
+        // --- Rotation handle (Task 4B.2) ---
+        const armLength = RENDER_CONFIG.ROTATION_ARM_LENGTH;
+        const handleRadius = RENDER_CONFIG.ROTATION_HANDLE_RADIUS;
+        const topCenterX = x + scaledWidth / 2;
+        const topCenterY = y;
+        const handleCX = topCenterX;
+        const handleCY = topCenterY - armLength;
+        
+        // Rotation arm line (thin solid)
+        ctx.strokeStyle = RENDER_COLOURS.ROTATION_HANDLE;
+        ctx.lineWidth = RENDER_CONFIG.ROTATION_ARM_WIDTH;
+        ctx.beginPath();
+        ctx.moveTo(topCenterX, topCenterY - 2);
+        ctx.lineTo(handleCX, handleCY);
+        ctx.stroke();
+        
+        // Rotation handle circle
+        ctx.beginPath();
+        ctx.arc(handleCX, handleCY, handleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = RENDER_COLOURS.ROTATION_HANDLE;
+        ctx.fill();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Rotation icon inside circle (arc arrow)
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(handleCX, handleCY, 4, -Math.PI * 0.7, Math.PI * 0.5);
+        ctx.stroke();
+        // Arrowhead
+        const arrowTipX = handleCX + 4 * Math.cos(Math.PI * 0.5);
+        const arrowTipY = handleCY + 4 * Math.sin(Math.PI * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(arrowTipX - 3, arrowTipY - 2);
+        ctx.lineTo(arrowTipX, arrowTipY);
+        ctx.lineTo(arrowTipX + 2, arrowTipY - 3);
+        ctx.stroke();
+        
+        // --- Angle badge (only when rotation is non-zero) ---
+        if (item.rotation && item.rotation !== 0) {
+            const badgeText = `${Math.round(item.rotation)}\u00b0`;
+            const badgeFontSize = RENDER_CONFIG.ROTATION_BADGE_FONT_SIZE;
+            ctx.font = `600 ${badgeFontSize}px system-ui, sans-serif`;
+            const textWidth = ctx.measureText(badgeText).width;
+            const badgePadX = 4;
+            const badgePadY = 2;
+            const badgeW = textWidth + badgePadX * 2;
+            const badgeH = badgeFontSize + badgePadY * 2;
+            const badgeX = handleCX - badgeW / 2;
+            const badgeY = handleCY - handleRadius - badgeH - 4;
+            
+            // Badge background
+            ctx.fillStyle = RENDER_COLOURS.ROTATION_BADGE_BG;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
+            ctx.fill();
+            
+            // Badge text
+            ctx.fillStyle = RENDER_COLOURS.ROTATION_BADGE_TEXT;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(badgeText, handleCX, badgeY + badgeH / 2);
+        }
+        
         ctx.restore();
+    }
+    
+    /**
+     * Get canvas-space position of the rotation handle for a furniture item.
+     * Used by CanvasController for hit detection on the rotation affordance.
+     * 
+     * @param {Object} item - Furniture item with x, y, width, depth, rotation
+     * @returns {{ x: number, y: number }} Canvas coordinates of handle centre
+     */
+    getRotationHandlePosition(item) {
+        if (!item) return { x: 0, y: 0 };
+        
+        const pos = this.worldToCanvas(item.x, item.y);
+        const scaledWidth = this.scaleSize(item.width);
+        const scaledDepth = this.scaleSize(item.depth);
+        const armLength = RENDER_CONFIG.ROTATION_ARM_LENGTH;
+        
+        // Handle is at top-centre minus arm length, in local space
+        const localX = scaledWidth / 2;
+        const localY = -armLength;
+        
+        if (item.rotation && item.rotation !== 0) {
+            // Rotate the local handle position around the item centre
+            const centerX = pos.x + scaledWidth / 2;
+            const centerY = pos.y + scaledDepth / 2;
+            const rad = (item.rotation * Math.PI) / 180;
+            
+            // Local offset from centre
+            const dx = localX - scaledWidth / 2;
+            const dy = localY - scaledDepth / 2;
+            
+            return {
+                x: centerX + dx * Math.cos(rad) - dy * Math.sin(rad),
+                y: centerY + dx * Math.sin(rad) + dy * Math.cos(rad)
+            };
+        }
+        
+        return {
+            x: pos.x + localX,
+            y: pos.y + localY
+        };
     }
     
     /**
