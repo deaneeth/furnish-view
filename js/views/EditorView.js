@@ -765,9 +765,9 @@ class EditorView {
      * @private
      */
     _updateStatusFurnitureCount() {
-        // Furniture count can be displayed in the status bar if needed
-        // For now, this is a no-op placeholder that prevents the console error
-        // Could be extended to show: "Furniture: X items" in the status bar
+        if (!this.currentDesign || !this.toolbar) return;
+        const count = this.currentDesign.getFurnitureCount();
+        this.toolbar.updateItemCount(count);
     }
     
     /**
