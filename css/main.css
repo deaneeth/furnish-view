@@ -121,8 +121,8 @@ html {
 
 body {
     font-family: var(--font-sans);
-    font-size: var(--text-base);
-    line-height: var(--leading-normal);
+    font-size: var(--text-sm);
+    line-height: 1.6;
     color: var(--text);
     background-color: var(--bg);
     -webkit-font-smoothing: antialiased;
@@ -167,17 +167,20 @@ ul, ol {
    ========================================================================== */
 
 h1 {
-    font-size: var(--text-3xl);
+    font-size: var(--text-2xl);
+    font-weight: 700;
     letter-spacing: -0.025em;
 }
 
 h2 {
-    font-size: var(--text-2xl);
+    font-size: var(--text-xl);
+    font-weight: 600;
     letter-spacing: -0.02em;
 }
 
 h3 {
-    font-size: var(--text-xl);
+    font-size: var(--text-base);
+    font-weight: 600;
 }
 
 h4 {
@@ -188,8 +191,10 @@ p {
     margin-bottom: var(--space-4);
 }
 
-small {
-    font-size: var(--text-sm);
+small,
+.caption {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
 }
 
 code {
@@ -209,6 +214,48 @@ code {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+/* View transition: subtle fade-in on page change */
+#app > * {
+    animation: viewFadeIn var(--transition-fast) ease-out;
+}
+
+@keyframes viewFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+
+/* ==========================================================================
+   Scrollbar Styling
+   ========================================================================== */
+
+/* Firefox */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
 }
 
 
