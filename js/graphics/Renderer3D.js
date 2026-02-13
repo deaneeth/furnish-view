@@ -634,6 +634,30 @@ class Renderer3D {
             furnitureGroup.userData.furnitureId = item.id || '';
             furnitureGroup.userData.furnitureType = item.type || 'unknown';
 
+            // --- Soft contact shadow beneath furniture ---
+            // MeshBasicMaterial is intentional here: shadow decals must stay
+            // consistently dark regardless of lighting (not a furniture mesh).
+            const shadowRadiusX = (itemWidth * 0.45);
+            const shadowRadiusZ = (itemDepth * 0.45);
+            const shadowGeo = new THREE.CircleGeometry(
+                Math.max(shadowRadiusX, shadowRadiusZ), 32
+            );
+            const shadowMat = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.12,
+                depthWrite: false
+            });
+            const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+            shadow.rotation.x = -Math.PI / 2; // Lay flat on floor
+            shadow.position.y = 0.002;         // Just above floor to prevent z-fighting
+            // Scale to ellipse matching furniture footprint ratio
+            if (shadowRadiusX !== shadowRadiusZ) {
+                const maxR = Math.max(shadowRadiusX, shadowRadiusZ);
+                shadow.scale.set(shadowRadiusX / maxR, shadowRadiusZ / maxR, 1);
+            }
+            furnitureGroup.add(shadow);
+
             this.scene.add(furnitureGroup);
             this.furnitureMeshes.set(item.id, furnitureGroup);
         }
