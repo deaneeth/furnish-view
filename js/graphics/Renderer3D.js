@@ -38,10 +38,28 @@ const WALL_THICKNESS = 0.1;
 const SHADOW_MAP_SIZE = 2048;
 
 /**
- * Scene background colour — soft blue-grey for a clean studio look
+ * Scene background colour — soft blue-grey for atmospheric depth
  * @type {number}
  */
-const SCENE_BACKGROUND = 0xE8EDF0;
+const SCENE_BACKGROUND = 0xf0f4f8;
+
+/**
+ * Fog density for atmospheric depth — very low to just soften distant walls
+ * @type {number}
+ */
+const FOG_DENSITY = 0.015;
+
+/**
+ * Skirting board height in meters
+ * @type {number}
+ */
+const SKIRTING_HEIGHT = 0.08;
+
+/**
+ * Ceiling border strip height in meters
+ * @type {number}
+ */
+const CEILING_TRIM_HEIGHT = 0.03;
 
 /**
  * Renderer3D class
@@ -99,6 +117,12 @@ class Renderer3D {
         /** @type {boolean} Whether the renderer has been disposed */
         this.isDisposed = false;
 
+        /** @type {THREE.GridHelper|null} Floor grid overlay */
+        this.gridHelper = null;
+
+        /** @type {THREE.PointLight|null} Dim ceiling light for even fill */
+        this.pointLight = null;
+
         // Initialise the scene pipeline
         this.initScene();
         this.setupLighting();
@@ -150,9 +174,14 @@ class Renderer3D {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // Use default tone mapping — ACES compresses brightness
-        // too aggressively for interior scenes
-        this.renderer.toneMapping = THREE.NoToneMapping;
+        // ACES Filmic tone mapping — more natural colour rendering
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+
+        // SRGB colour space for correct gamma (r160+)
+        if (THREE.SRGBColorSpace) {
+            this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        }
 
         // Append canvas to container
         this.container.appendChild(this.renderer.domElement);
@@ -210,6 +239,13 @@ class Renderer3D {
         this.directionalLight.shadow.bias = -0.001;
 
         this.scene.add(this.directionalLight);
+
+        // Dim ceiling point light — simulates a room ceiling fixture
+        // for more even illumination of interior surfaces.
+        // Position is updated when room data arrives in buildRoom().
+        this.pointLight = new THREE.PointLight(0xffffff, 0.2, 30);
+        this.pointLight.position.set(0, 2.5, 0);
+        this.scene.add(this.pointLight);
     }
 
     /**
@@ -253,11 +289,35 @@ class Renderer3D {
             this._buildRectangularRoom(roomWidth, roomDepth, roomHeight, floorMaterial, wallMaterial);
         }
 
-        // --- Update directional light to shine into the room interior ---
+        // --- Floor grid overlay for scale reference ---
+        // GridHelper at 1-metre intervals, raised slightly above floor to prevent z-fighting
+        if (this.gridHelper) {
+            this.scene.remove(this.gridHelper);
+            this.gridHelper.dispose();
+        }
+        const gridSize = Math.max(roomWidth, roomDepth);
+        this.gridHelper = new THREE.GridHelper(gridSize, gridSize, 0xcccccc, 0xe0e0e0);
+        this.gridHelper.position.y = 0.001;
+
+        // GridHelper may use a single material or an array — handle both
+        const gridMats = Array.isArray(this.gridHelper.material)
+            ? this.gridHelper.material
+            : [this.gridHelper.material];
+        for (const mat of gridMats) {
+            mat.opacity = 0.4;
+            mat.transparent = true;
+        }
+        this.scene.add(this.gridHelper);
+        this.roomMeshes.add(this.gridHelper);
+
+        // --- Atmospheric fog for depth perception ---
+        this.scene.fog = new THREE.FogExp2(SCENE_BACKGROUND, FOG_DENSITY);
+
+        // --- Update directional light to 45° angle ---
         this.directionalLight.position.set(
-            roomWidth * 0.3,
-            roomHeight * 3,
-            roomDepth * 0.5
+            roomWidth * 0.5,
+            roomHeight * 2.5,
+            roomDepth * 0.8
         );
         this.directionalLight.target.position.set(0, 0, 0);
         this.directionalLight.target.updateMatrixWorld();
@@ -267,13 +327,24 @@ class Renderer3D {
         this.directionalLight.shadow.camera.bottom = -(roomDepth + 2);
         this.directionalLight.shadow.camera.updateProjectionMatrix();
 
-        // --- Update camera position relative to room size ---
+        // --- Reposition ceiling point light ---
+        if (this.pointLight) {
+            this.pointLight.position.set(0, roomHeight - 0.1, 0);
+        }
+
+        // --- Camera: "showroom" angle (standing at door looking in) ---
         this.camera.position.set(
-            roomWidth * 0.7,
-            roomHeight * 2,
-            roomDepth * 1.5
+            roomWidth * 0.8,
+            roomHeight * 1.5,
+            roomDepth * 1.2
         );
-        this.camera.lookAt(0, 0, 0);
+        this.camera.lookAt(0, roomHeight * 0.3, 0);
+
+        // Update orbit target to match the slightly-above-floor look
+        if (this.controls) {
+            this.controls.target.set(0, roomHeight * 0.3, 0);
+            this.controls.update();
+        }
     }
 
     /**
@@ -302,6 +373,9 @@ class Renderer3D {
         this._addWallSegment(-w / 2, -d / 2, -w / 2, d / 2, h, wallMat);
         // Right wall
         this._addWallSegment(w / 2, -d / 2, w / 2, d / 2, h, wallMat);
+
+        // --- Architectural trim details ---
+        this._addWallTrim(w, d, h, wallMat);
     }
 
     /**
@@ -422,6 +496,76 @@ class Renderer3D {
     }
 
     /**
+     * Add architectural trim details to a rectangular room.
+     *
+     * Creates skirting boards (SKIRTING_HEIGHT) at the base of each wall and
+     * thin ceiling border strips (CEILING_TRIM_HEIGHT) at the top. Both use
+     * a slightly darker shade of the wall colour for subtle visual definition.
+     *
+     * @param {number} w - Room width
+     * @param {number} d - Room depth
+     * @param {number} h - Room height
+     * @param {THREE.Material} wallMat - Wall material (colour is darkened for trim)
+     * @private
+     */
+    _addWallTrim(w, d, h, wallMat) {
+        // Derive a slightly darker shade from the wall colour
+        const wallColor = wallMat.color ? wallMat.color : new THREE.Color(0xccc0b0);
+        const trimColor = wallColor.clone().multiplyScalar(0.82);
+
+        const skirtMat = new THREE.MeshStandardMaterial({
+            color: trimColor,
+            roughness: 0.6,
+            metalness: 0.05
+        });
+
+        const ceilTrimMat = new THREE.MeshStandardMaterial({
+            color: trimColor,
+            roughness: 0.6,
+            metalness: 0.05
+        });
+
+        // Wall segments: [startX, startZ, endX, endZ] — same 3 walls as rectangular room
+        const segments = [
+            [-w / 2, -d / 2,  w / 2, -d / 2], // Back
+            [-w / 2, -d / 2, -w / 2,  d / 2], // Left
+            [ w / 2, -d / 2,  w / 2,  d / 2]  // Right
+        ];
+
+        for (const [x1, z1, x2, z2] of segments) {
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const length = Math.sqrt(dx * dx + dz * dz);
+            if (length < 0.001) continue;
+
+            const angle = Math.atan2(dx, dz);
+            const cx = (x1 + x2) / 2;
+            const cz = (z1 + z2) / 2;
+
+            // Skirting board at wall base
+            const skirtGeo = new THREE.BoxGeometry(
+                WALL_THICKNESS + 0.02, SKIRTING_HEIGHT, length
+            );
+            const skirting = new THREE.Mesh(skirtGeo, skirtMat.clone());
+            skirting.position.set(cx, SKIRTING_HEIGHT / 2, cz);
+            skirting.rotation.y = angle;
+            skirting.receiveShadow = true;
+            this.scene.add(skirting);
+            this.roomMeshes.add(skirting);
+
+            // Ceiling border strip at wall top
+            const ceilGeo = new THREE.BoxGeometry(
+                WALL_THICKNESS + 0.01, CEILING_TRIM_HEIGHT, length
+            );
+            const ceilTrim = new THREE.Mesh(ceilGeo, ceilTrimMat.clone());
+            ceilTrim.position.set(cx, h - CEILING_TRIM_HEIGHT / 2, cz);
+            ceilTrim.rotation.y = angle;
+            this.scene.add(ceilTrim);
+            this.roomMeshes.add(ceilTrim);
+        }
+    }
+
+    /**
      * Build composite furniture meshes from a furniture array.
      *
      * Uses FurnitureFactory3D to create recognisable multi-mesh furniture
@@ -536,10 +680,17 @@ class Renderer3D {
                 mesh.geometry.dispose();
             }
             if (mesh.material) {
-                mesh.material.dispose();
+                if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach(m => m.dispose());
+                } else {
+                    mesh.material.dispose();
+                }
             }
         }
         this.roomMeshes.clear();
+
+        // Clear fog (rebuilt per-room in buildRoom)
+        this.scene.fog = null;
     }
 
     /**
@@ -707,6 +858,12 @@ class Renderer3D {
                 this.directionalLight.shadow.map.dispose();
             }
             this.directionalLight = null;
+        }
+
+        // Dispose ceiling point light
+        if (this.pointLight) {
+            this.scene.remove(this.pointLight);
+            this.pointLight = null;
         }
 
         // Dispose controls
