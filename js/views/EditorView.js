@@ -114,9 +114,6 @@ class EditorView {
                             <span class="btn-icon">←</span>
                             <span class="btn-text">Dashboard</span>
                         </button>
-                    </div>
-                    
-                    <div class="editor-top-center">
                         <input 
                             type="text" 
                             class="editor-design-name" 
@@ -127,11 +124,16 @@ class EditorView {
                         />
                     </div>
                     
-                    <div class="editor-top-right">
+                    <div class="editor-top-center">
                         <div class="view-toggle">
-                            <button type="button" class="view-toggle-btn active" data-view="2d">2D</button>
-                            <button type="button" class="view-toggle-btn" data-view="3d">3D</button>
+                            <div class="view-toggle-indicator" id="toggle-indicator"></div>
+                            <button type="button" class="view-toggle-btn active" data-view="2d">2D Layout</button>
+                            <button type="button" class="view-toggle-btn" data-view="3d">3D Preview</button>
                         </div>
+                    </div>
+                    
+                    <div class="editor-top-right">
+                        <span class="save-status save-status-saved" id="save-status">Saved ✓</span>
                         <button type="button" class="btn btn-primary btn-sm editor-save-btn">
                             <span class="btn-icon">💾</span>
                             <span class="btn-text">Save</span>
@@ -148,6 +150,7 @@ class EditorView {
                     
                     <!-- CENTER CANVAS -->
                     <main class="editor-canvas-area">
+                        <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle" aria-label="Toggle properties panel" title="Toggle sidebar">☰</button>
                         <div class="canvas-wrapper">
                             <div class="canvas-container">
                                 <canvas id="room-canvas" class="canvas-2d" width="800" height="600"></canvas>
@@ -173,12 +176,12 @@ class EditorView {
                     </div>
                     <div class="status-center">
                         <span class="status-item" id="status-selection">
-                            ${this.selectedFurniture ? `Selected: ${this.selectedFurniture.type}` : 'No selection'}
+                            ${this._getSelectionText()}
                         </span>
                     </div>
                     <div class="status-right">
-                        <span class="status-item" id="status-view">
-                            View: ${this.currentView.toUpperCase()}
+                        <span class="status-item" id="status-scale">
+                            ${this._getScaleText()}
                         </span>
                     </div>
                 </footer>
@@ -209,10 +212,15 @@ class EditorView {
         this.view3DContainer = this.container.querySelector('#view-3d-container');
         this.toolbarContainer = this.container.querySelector('.toolbar-container');
         this.sidebarContainer = this.container.querySelector('.sidebar-container');
+        this.sidebarPanel = this.container.querySelector('.editor-sidebar');
         this.designNameInput = this.container.querySelector('.editor-design-name');
         this.saveBtn = this.container.querySelector('.editor-save-btn');
         this.backBtn = this.container.querySelector('.editor-back-btn');
         this.viewToggleBtns = this.container.querySelectorAll('.view-toggle-btn');
+        this.toggleIndicator = this.container.querySelector('#toggle-indicator');
+        this.saveStatusEl = this.container.querySelector('#save-status');
+        this.sidebarToggleBtn = this.container.querySelector('#sidebar-toggle');
+        this.canvasArea = this.container.querySelector('.editor-canvas-area');
     }
     
     /**
@@ -255,6 +263,7 @@ class EditorView {
             if (this.design) {
                 this.design.name = e.target.value.trim() || 'Untitled Design';
                 this.hasUnsavedChanges = true;
+                this._updateSaveStatus();
             }
         });
         
@@ -266,6 +275,11 @@ class EditorView {
                     this.switchView(view);
                 }
             });
+        });
+        
+        // Sidebar toggle (narrow screens)
+        this.sidebarToggleBtn?.addEventListener('click', () => {
+            this.sidebarPanel?.classList.toggle('sidebar-open');
         });
         
         // Keyboard shortcuts
@@ -335,6 +349,7 @@ class EditorView {
         
         this.onSave(this.design);
         this.hasUnsavedChanges = false;
+        this._updateSaveStatus();
     }
     
     /**
@@ -447,6 +462,7 @@ class EditorView {
         
         this.design.room[property] = value;
         this.hasUnsavedChanges = true;
+        this._updateSaveStatus();
         
         // Debounced Toast notification for colour changes
         // Only shows after user stops dragging for 500ms
@@ -531,6 +547,7 @@ class EditorView {
      */
     _onControllerFurnitureUpdate() {
         this.hasUnsavedChanges = true;
+        this._updateSaveStatus();
         this._updateSidebar();
     }
     
@@ -540,6 +557,7 @@ class EditorView {
      */
     _onControllerDesignChange() {
         this.hasUnsavedChanges = true;
+        this._updateSaveStatus();
         this._renderCanvas();
         this._updateSidebar();
         this._updateStatusFurnitureCount();
@@ -575,6 +593,7 @@ class EditorView {
         
         this.selectedFurniture[property] = value;
         this.hasUnsavedChanges = true;
+        this._updateSaveStatus();
         
         // Debounced Toast notification for colour changes
         // Only shows after user stops dragging for 500ms
@@ -613,6 +632,17 @@ class EditorView {
             btn.classList.toggle('active', btn.dataset.view === view);
         });
 
+        // Slide the indicator to match active view
+        if (this.toggleIndicator) {
+            this.toggleIndicator.classList.toggle('right', view === '3d');
+        }
+
+        // Crossfade transition
+        if (this.canvasArea) {
+            this.canvasArea.classList.add('view-crossfade');
+            setTimeout(() => this.canvasArea.classList.remove('view-crossfade'), 220);
+        }
+
         if (view === '3d') {
             this._switchTo3D();
         } else {
@@ -620,7 +650,7 @@ class EditorView {
         }
 
         // Update status bar
-        this._updateStatusView();
+        this._updateStatusScale();
 
         // Trigger callback
         this.onToggle3D(view);
@@ -743,20 +773,63 @@ class EditorView {
     _updateStatusSelection() {
         const el = this.container?.querySelector('#status-selection');
         if (el) {
-            el.textContent = this.selectedFurniture 
-                ? `Selected: ${this.selectedFurniture.type}`
-                : 'No selection';
+            el.textContent = this._getSelectionText();
         }
     }
     
     /**
-     * Update status bar view mode
+     * Update status bar scale info
      * @private
      */
-    _updateStatusView() {
-        const el = this.container?.querySelector('#status-view');
+    _updateStatusScale() {
+        const el = this.container?.querySelector('#status-scale');
         if (el) {
-            el.textContent = `View: ${this.currentView.toUpperCase()}`;
+            el.textContent = this._getScaleText();
+        }
+    }
+    
+    /**
+     * Get formatted selection text for status bar
+     * @returns {string} Selection description with dimensions
+     * @private
+     */
+    _getSelectionText() {
+        if (!this.selectedFurniture) return 'No selection';
+        const item = this.selectedFurniture;
+        const typeName = this._formatFurnitureType(item.type);
+        const w = item.width ?? 0;
+        const d = item.depth ?? 0;
+        return `Selected: ${typeName} (${w}m × ${d}m)`;
+    }
+    
+    /**
+     * Get formatted scale text for status bar
+     * @returns {string} Current scale description
+     * @private
+     */
+    _getScaleText() {
+        if (this.currentView === '3d') return 'View: 3D Preview';
+        if (this.renderer2d?.scale) {
+            const pxPerM = Math.round(this.renderer2d.scale);
+            return `Scale: 1m = ${pxPerM}px`;
+        }
+        return 'View: 2D Layout';
+    }
+    
+    /**
+     * Update the save status indicator in the top bar.
+     * Shows "Saved ✓" (green) or "Unsaved changes" (amber).
+     * @private
+     */
+    _updateSaveStatus() {
+        if (!this.saveStatusEl) return;
+        
+        if (this.hasUnsavedChanges) {
+            this.saveStatusEl.textContent = 'Unsaved changes';
+            this.saveStatusEl.className = 'save-status save-status-unsaved';
+        } else {
+            this.saveStatusEl.textContent = 'Saved ✓';
+            this.saveStatusEl.className = 'save-status save-status-saved';
         }
     }
     
@@ -785,6 +858,7 @@ class EditorView {
      */
     markUnsaved() {
         this.hasUnsavedChanges = true;
+        this._updateSaveStatus();
     }
     
     /**
