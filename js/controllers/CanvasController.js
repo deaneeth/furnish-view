@@ -32,6 +32,12 @@ const ROTATION_HIT_RADIUS = 14;
 const ROTATION_SNAP_STEP = 15;
 
 /**
+ * Default snap-to-grid increment in meters
+ * @type {number}
+ */
+const SNAP_INCREMENT = 0.25;
+
+/**
  * CanvasController
  * Manages canvas interactions and furniture manipulation
  */
@@ -83,6 +89,10 @@ class CanvasController {
         this.placingType = null;
         this.placingDef = null; // Furniture definition for placing preview
         
+        // Snap-to-grid state
+        this.snapToGrid = true;
+        this.snapIncrement = SNAP_INCREMENT;
+
         // Undo system
         this.undoStack = [];
         
@@ -308,8 +318,13 @@ class CanvasController {
             depth: this.selectedItem.depth
         });
         
+        // Snap to grid if enabled
+        const finalPos = this.snapToGrid
+            ? this._snapPosition(clampedPos.x, clampedPos.y)
+            : clampedPos;
+        
         // Update item position
-        this.selectedItem.setPosition(clampedPos.x, clampedPos.y);
+        this.selectedItem.setPosition(finalPos.x, finalPos.y);
         this.positionChanged = true;
         
         // Re-render for real-time visual feedback
@@ -381,13 +396,22 @@ class CanvasController {
         this._saveState();
         
         // Convert canvas position to world position
-        const worldPos = this.renderer.canvasToWorld(pos.x, pos.y);
+        const rawPos = this.renderer.canvasToWorld(pos.x, pos.y);
+        
+        // Snap placement position to grid if enabled
+        const worldPos = this.snapToGrid
+            ? this._snapPosition(
+                rawPos.x - furnitureDef.defaultWidth / 2,
+                rawPos.y - furnitureDef.defaultDepth / 2
+              )
+            : { x: rawPos.x - furnitureDef.defaultWidth / 2,
+                y: rawPos.y - furnitureDef.defaultDepth / 2 };
         
         // Create new furniture item with default dimensions
         const newItem = new FurnitureItem({
             type: furnitureDef.type,
-            x: worldPos.x - furnitureDef.defaultWidth / 2, // Center on click
-            y: worldPos.y - furnitureDef.defaultDepth / 2,
+            x: worldPos.x,
+            y: worldPos.y,
             width: furnitureDef.defaultWidth,
             depth: furnitureDef.defaultDepth,
             height: furnitureDef.defaultHeight,
@@ -523,11 +547,16 @@ class CanvasController {
             depth: this.placingDef.defaultDepth
         });
         
+        // Snap to grid if enabled
+        const finalPos = this.snapToGrid
+            ? this._snapPosition(clampedPos.x, clampedPos.y)
+            : clampedPos;
+        
         // Set ghost preview on renderer
         this.renderer.setGhostPreview({
             type: this.placingDef.type,
-            x: clampedPos.x,
-            y: clampedPos.y,
+            x: finalPos.x,
+            y: finalPos.y,
             width: this.placingDef.defaultWidth,
             depth: this.placingDef.defaultDepth,
             colour: this.placingDef.defaultColour
@@ -740,6 +769,32 @@ class CanvasController {
         this.isDragging = false;
         this.placingType = null;
         this.undoStack = [];
+    }
+
+    /**
+     * Snap a world position to the nearest grid increment.
+     *
+     * @param {number} worldX - X position in meters
+     * @param {number} worldY - Y position in meters
+     * @returns {Object} Snapped position { x, y }
+     * @private
+     */
+    _snapPosition(worldX, worldY) {
+        const inc = this.snapIncrement;
+        return {
+            x: Math.round(worldX / inc) * inc,
+            y: Math.round(worldY / inc) * inc
+        };
+    }
+
+    /**
+     * Toggle snap-to-grid on or off.
+     *
+     * @returns {boolean} New snap-to-grid state
+     */
+    toggleSnapToGrid() {
+        this.snapToGrid = !this.snapToGrid;
+        return this.snapToGrid;
     }
 }
 

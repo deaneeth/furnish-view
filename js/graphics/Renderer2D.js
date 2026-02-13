@@ -339,6 +339,11 @@ class Renderer2D {
         // Step 3: Draw room outline
         this._drawRoom();
         
+        // Step 3.5: Draw dimension labels (outside room edges)
+        if (this.showDimensions) {
+            this._drawDimensionLabels();
+        }
+        
         // Step 4: Draw all furniture items
         this._drawAllFurniture();
         
@@ -416,7 +421,153 @@ class Renderer2D {
         
         ctx.restore();
     }
-    
+
+    /**
+     * Draw architectural dimension labels along room edges.
+     *
+     * Renders width and depth dimension lines with arrow endpoints
+     * and extension lines outside the room outline, similar to
+     * architectural blueprint annotations.
+     *
+     * @private
+     */
+    _drawDimensionLabels() {
+        if (!this.ctx || !this.room) return;
+
+        const ctx = this.ctx;
+        const roomW = this.room.width;
+        const roomD = this.room.depth;
+
+        // Canvas coordinates for room corners
+        const topLeft = this.worldToCanvas(0, 0);
+        const topRight = this.worldToCanvas(roomW, 0);
+        const bottomLeft = this.worldToCanvas(0, roomD);
+        const bottomRight = this.worldToCanvas(roomW, roomD);
+
+        // Offset distances (pixels)
+        const LABEL_OFFSET = 28;    // Distance from room edge
+        const TICK_LENGTH = 6;      // Extension line length
+        const ARROW_SIZE = 5;       // Arrowhead size
+
+        ctx.save();
+        ctx.strokeStyle = RENDER_COLOURS.DIMENSION_LABEL;
+        ctx.fillStyle = RENDER_COLOURS.DIMENSION_LABEL;
+        ctx.lineWidth = 1;
+        ctx.font = `${RENDER_CONFIG.DIMENSION_FONT_SIZE}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // --- Width label (bottom edge) ---
+        const widthY = bottomLeft.y + LABEL_OFFSET;
+
+        // Extension lines (vertical ticks at each end)
+        ctx.beginPath();
+        ctx.moveTo(bottomLeft.x, bottomLeft.y + 4);
+        ctx.lineTo(bottomLeft.x, widthY + TICK_LENGTH);
+        ctx.moveTo(bottomRight.x, bottomRight.y + 4);
+        ctx.lineTo(bottomRight.x, widthY + TICK_LENGTH);
+        ctx.stroke();
+
+        // Dimension line with arrows
+        const widthText = `${roomW.toFixed(1)}m`;
+        const textWidth = ctx.measureText(widthText).width + 12;
+        const midX = (bottomLeft.x + bottomRight.x) / 2;
+
+        // Left segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(bottomLeft.x, widthY);
+        ctx.lineTo(midX - textWidth / 2, widthY);
+        ctx.stroke();
+        this._drawArrowhead(ctx, bottomLeft.x, widthY, 'right', ARROW_SIZE);
+
+        // Right segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(midX + textWidth / 2, widthY);
+        ctx.lineTo(bottomRight.x, widthY);
+        ctx.stroke();
+        this._drawArrowhead(ctx, bottomRight.x, widthY, 'left', ARROW_SIZE);
+
+        // Width text
+        ctx.fillText(widthText, midX, widthY);
+
+        // --- Depth label (right edge) ---
+        const depthX = topRight.x + LABEL_OFFSET;
+
+        // Extension lines (horizontal ticks at each end)
+        ctx.beginPath();
+        ctx.moveTo(topRight.x + 4, topRight.y);
+        ctx.lineTo(depthX + TICK_LENGTH, topRight.y);
+        ctx.moveTo(bottomRight.x + 4, bottomRight.y);
+        ctx.lineTo(depthX + TICK_LENGTH, bottomRight.y);
+        ctx.stroke();
+
+        // Depth dimension line
+        const depthText = `${roomD.toFixed(1)}m`;
+        const depthTextWidth = ctx.measureText(depthText).width + 12;
+        const midY = (topRight.y + bottomRight.y) / 2;
+
+        // Top segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(depthX, topRight.y);
+        ctx.lineTo(depthX, midY - depthTextWidth / 2);
+        ctx.stroke();
+        this._drawArrowhead(ctx, depthX, topRight.y, 'down', ARROW_SIZE);
+
+        // Bottom segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(depthX, midY + depthTextWidth / 2);
+        ctx.lineTo(depthX, bottomRight.y);
+        ctx.stroke();
+        this._drawArrowhead(ctx, depthX, bottomRight.y, 'up', ARROW_SIZE);
+
+        // Depth text (rotated 90°)
+        ctx.save();
+        ctx.translate(depthX, midY);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(depthText, 0, 0);
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    /**
+     * Draw a small arrowhead at the given position.
+     *
+     * @param {CanvasRenderingContext2D} ctx - Canvas context
+     * @param {number} x - Arrowhead tip X
+     * @param {number} y - Arrowhead tip Y
+     * @param {string} direction - 'left', 'right', 'up', or 'down'
+     * @param {number} size - Arrowhead size in pixels
+     * @private
+     */
+    _drawArrowhead(ctx, x, y, direction, size) {
+        ctx.beginPath();
+        switch (direction) {
+            case 'right':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + size, y - size / 2);
+                ctx.lineTo(x + size, y + size / 2);
+                break;
+            case 'left':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - size, y - size / 2);
+                ctx.lineTo(x - size, y + size / 2);
+                break;
+            case 'down':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - size / 2, y - size);
+                ctx.lineTo(x + size / 2, y - size);
+                break;
+            case 'up':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - size / 2, y + size);
+                ctx.lineTo(x + size / 2, y + size);
+                break;
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+
     /**
      * ALGORITHM 1: Draw Room
      * 
