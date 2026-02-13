@@ -112,10 +112,19 @@ class Sidebar {
         return `
             <div class="property-group">
                 <label class="property-label">Dimensions</label>
-                <div class="property-value dimensions-display">
-                    <span>${room.width || 0}m</span> × 
-                    <span>${room.depth || 0}m</span> × 
-                    <span>${room.height || 0}m</span>
+                <div class="room-dimensions-grid">
+                    <div class="room-dimension-item">
+                        <span class="room-dimension-label">Width</span>
+                        <span class="room-dimension-value">${room.width || 0} m</span>
+                    </div>
+                    <div class="room-dimension-item">
+                        <span class="room-dimension-label">Depth</span>
+                        <span class="room-dimension-value">${room.depth || 0} m</span>
+                    </div>
+                    <div class="room-dimension-item">
+                        <span class="room-dimension-label">Height</span>
+                        <span class="room-dimension-value">${room.height || 0} m</span>
+                    </div>
                 </div>
             </div>
             
@@ -130,6 +139,7 @@ class Sidebar {
                         data-property="wallColour"
                         data-target="room"
                         data-surface="wall"
+                        aria-label="Wall colour picker"
                     />
                     <span class="colour-value">${room.wallColour || '#E8E0D4'}</span>
                     <span class="colour-warning-icon" id="wall-colour-warning" aria-label="Colour warning">⚠️</span>
@@ -150,6 +160,7 @@ class Sidebar {
                         data-property="floorColour"
                         data-target="room"
                         data-surface="floor"
+                        aria-label="Floor colour picker"
                     />
                     <span class="colour-value">${room.floorColour || '#8B7355'}</span>
                     <span class="colour-warning-icon" id="floor-colour-warning" aria-label="Colour warning">⚠️</span>
@@ -161,7 +172,10 @@ class Sidebar {
             
             <div class="property-group">
                 <label class="property-label">Room Shape</label>
-                <div class="property-value">${this._formatShape(room.shape)}</div>
+                <div class="property-value shape-display">
+                    <span class="shape-icon ${this._getShapeIconClass(room.shape)}"></span>
+                    ${this._formatShape(room.shape)}
+                </div>
             </div>
         `;
     }
@@ -174,60 +188,69 @@ class Sidebar {
      */
     _renderFurnitureProperties(furniture) {
         if (!furniture) {
-            return '<p class="sidebar-empty">Select a furniture item to edit its properties</p>';
+            return '<p class="sidebar-empty">Select a furniture item on the canvas to edit its properties</p>';
         }
         
+        const emoji = this._getFurnitureEmoji(furniture.type);
+        const label = this._escapeHtml(furniture.type || 'Unknown');
+        
         return `
+            <div class="furniture-title">
+                <span class="furniture-title-emoji">${emoji}</span>${label} Properties
+            </div>
+            
             <div class="property-group">
-                <label class="property-label">Type</label>
-                <div class="property-value furniture-type-display">
-                    ${this._escapeHtml(furniture.type || 'Unknown')}
+                <label class="property-label" for="furniture-width">Width</label>
+                <div class="input-with-suffix">
+                    <input 
+                        type="number" 
+                        id="furniture-width"
+                        class="property-input"
+                        value="${furniture.width || 0}"
+                        min="0.2"
+                        max="4"
+                        step="0.1"
+                        data-property="width"
+                        data-target="furniture"
+                    />
+                    <span class="input-suffix">m</span>
                 </div>
             </div>
             
             <div class="property-group">
-                <label class="property-label" for="furniture-width">Width (m)</label>
-                <input 
-                    type="number" 
-                    id="furniture-width"
-                    class="property-input"
-                    value="${furniture.width || 0}"
-                    min="0.1"
-                    max="10"
-                    step="0.1"
-                    data-property="width"
-                    data-target="furniture"
-                />
+                <label class="property-label" for="furniture-depth">Depth</label>
+                <div class="input-with-suffix">
+                    <input 
+                        type="number" 
+                        id="furniture-depth"
+                        class="property-input"
+                        value="${furniture.depth || 0}"
+                        min="0.2"
+                        max="4"
+                        step="0.1"
+                        data-property="depth"
+                        data-target="furniture"
+                    />
+                    <span class="input-suffix">m</span>
+                </div>
             </div>
             
             <div class="property-group">
-                <label class="property-label" for="furniture-depth">Depth (m)</label>
-                <input 
-                    type="number" 
-                    id="furniture-depth"
-                    class="property-input"
-                    value="${furniture.depth || 0}"
-                    min="0.1"
-                    max="10"
-                    step="0.1"
-                    data-property="depth"
-                    data-target="furniture"
-                />
-            </div>
-            
-            <div class="property-group">
-                <label class="property-label" for="furniture-height">Height (m)</label>
-                <input 
-                    type="number" 
-                    id="furniture-height"
-                    class="property-input"
-                    value="${furniture.height || 0}"
-                    min="0.1"
-                    max="5"
-                    step="0.1"
-                    data-property="height"
-                    data-target="furniture"
-                />
+                <label class="property-label" for="furniture-height">Height</label>
+                <div class="input-with-suffix">
+                    <input 
+                        type="number" 
+                        id="furniture-height"
+                        class="property-input"
+                        value="${furniture.height || 0}"
+                        min="0.2"
+                        max="5"
+                        step="0.1"
+                        data-property="height"
+                        data-target="furniture"
+                    />
+                    <span class="input-suffix">m</span>
+                </div>
             </div>
             
             <div class="property-group">
@@ -240,6 +263,7 @@ class Sidebar {
                         value="${furniture.colour || '#5C4033'}"
                         data-property="colour"
                         data-target="furniture"
+                        aria-label="Furniture colour picker"
                     />
                     <span class="colour-value">${furniture.colour || '#5C4033'}</span>
                 </div>
@@ -258,6 +282,7 @@ class Sidebar {
                         step="15"
                         data-property="rotation"
                         data-target="furniture"
+                        aria-label="Rotation slider"
                     />
                     <input 
                         type="number" 
@@ -281,8 +306,15 @@ class Sidebar {
             
             <div class="property-group">
                 <label class="property-label">Position</label>
-                <div class="property-value position-display">
-                    X: ${(furniture.x || 0).toFixed(2)}m, Y: ${(furniture.y || 0).toFixed(2)}m
+                <div class="position-rows">
+                    <div class="position-row">
+                        <span class="position-label">X from left wall</span>
+                        <span class="position-value">${(furniture.x || 0).toFixed(2)} m</span>
+                    </div>
+                    <div class="position-row">
+                        <span class="position-label">Y from back wall</span>
+                        <span class="position-value">${(furniture.y || 0).toFixed(2)} m</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -297,6 +329,40 @@ class Sidebar {
     _formatShape(shape) {
         if (!shape) return 'Unknown';
         return shape.charAt(0).toUpperCase() + shape.slice(1).replace('-', ' ');
+    }
+    
+    /**
+     * Get CSS class for the shape mini-icon
+     * @param {string} shape - Room shape type
+     * @returns {string} CSS modifier class
+     * @private
+     */
+    _getShapeIconClass(shape) {
+        if (!shape) return '';
+        if (shape.toLowerCase() === 'l-shape' || shape.toLowerCase() === 'l') {
+            return 'shape-icon--l-shape';
+        }
+        return '';
+    }
+    
+    /**
+     * Get emoji for a furniture type
+     * @param {string} type - Furniture type ID from catalogue
+     * @returns {string} Emoji character
+     * @private
+     */
+    _getFurnitureEmoji(type) {
+        const emojiMap = {
+            'chair':         '🪑',
+            'dining-table':  '🍽️',
+            'side-table':    '🪟',
+            'sofa':          '🛋️',
+            'armchair':      '💺',
+            'coffee-table':  '☕',
+            'bookshelf':     '📚',
+            'desk':          '🖥️'
+        };
+        return emojiMap[type] || '🪑';
     }
     
     /**
