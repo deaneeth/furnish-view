@@ -335,6 +335,17 @@ class EditorView {
             this._updateSidebar();
             this._updateStatusSelection();
         }
+
+        // G - Toggle snap-to-grid (only when not typing in an input)
+        if (e.key === 'g' && document.activeElement?.tagName !== 'INPUT') {
+            const isSnapping = this.canvasController?.toggleSnapToGrid();
+            if (isSnapping !== undefined) {
+                const label = isSnapping
+                    ? `Snap: ${this.canvasController.snapIncrement}m`
+                    : 'Snap: Off';
+                Toast.info(label);
+            }
+        }
     }
     
     /**
