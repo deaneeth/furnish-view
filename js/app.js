@@ -9,6 +9,7 @@
  */
 
 import { LoginView } from './views/LoginView.js';
+import { LandingView } from './views/LandingView.js';
 import { DashboardView } from './views/DashboardView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
@@ -56,7 +57,29 @@ function clearContainer() {
 }
 
 /**
- * Navigate to the login view
+ * Navigate to the landing page (default entry when not logged in)
+ */
+function showLanding() {
+    clearContainer();
+    AppState.currentView = 'landing';
+    AppState.user = null;
+    
+    const container = getAppContainer();
+    if (!container) return;
+    
+    const landingView = new LandingView({
+        onLoginSuccess: () => {
+            AppState.user = getCurrentUser();
+            showDashboard();
+        }
+    });
+    
+    landingView.render(container);
+    AppState.viewInstance = landingView;
+}
+
+/**
+ * Navigate to the login view (fallback / direct login)
  */
 function showLogin() {
     clearContainer();
@@ -84,7 +107,7 @@ function showLogin() {
 function showDashboard() {
     // Check authentication
     if (!isLoggedIn()) {
-        showLogin();
+        showLanding();
         return;
     }
     
@@ -356,7 +379,7 @@ function handleLogout() {
     AppState.user = null;
     AppState.currentDesignId = null;
     Toast.info('You have been logged out');
-    showLogin();
+    showLanding();
 }
 
 /**
@@ -384,7 +407,7 @@ function initApp() {
         AppState.user = getCurrentUser();
         showDashboard();
     } else {
-        showLogin();
+        showLanding();
     }
 }
 
@@ -399,6 +422,7 @@ if (document.readyState === 'loading') {
 // Export for ES modules
 export {
     AppState,
+    showLanding,
     showLogin,
     showDashboard,
     showEditor,
