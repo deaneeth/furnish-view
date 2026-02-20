@@ -323,6 +323,28 @@ export default class FurnitureFactory3D {
             group.add(foot);
         }
 
+        // Throw pillows — two small cushions on seat corners for realism
+        const pillowMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._lightenColour(colour, 1.25), 0.95, 0.0
+        );
+        const pillowGeo = new THREE.BoxGeometry(
+            dims.width * 0.18, dims.height * 0.18, dims.depth * 0.18
+        );
+        const pillowY = dims.height * 0.48;
+        const pillowZ = -(dims.depth * 0.25);
+
+        const leftPillow = new THREE.Mesh(pillowGeo, pillowMat);
+        leftPillow.position.set(-(dims.width * 0.3), pillowY, pillowZ);
+        leftPillow.rotation.y = 0.15;
+        FurnitureFactory3D._enableShadows(leftPillow);
+        group.add(leftPillow);
+
+        const rightPillow = new THREE.Mesh(pillowGeo, pillowMat);
+        rightPillow.position.set(dims.width * 0.3, pillowY, pillowZ);
+        rightPillow.rotation.y = -0.2;
+        FurnitureFactory3D._enableShadows(rightPillow);
+        group.add(rightPillow);
+
         return group;
     }
 
@@ -536,6 +558,37 @@ export default class FurnitureFactory3D {
             shelf.position.set(0, dims.height * fraction, 0);
             FurnitureFactory3D._enableShadows(shelf);
             group.add(shelf);
+        }
+
+        // Books on shelves — small coloured blocks in clusters
+        const bookColours = ['#8B4513', '#2F4F4F', '#800020', '#1C3A5F', '#5C4033', '#4A3728'];
+        const innerWidth = dims.width - panelThickness * 2 - 0.04;
+        for (let si = 0; si < shelfPositions.length; si++) {
+            const shelfY = dims.height * shelfPositions[si] + 0.01;
+            // Place 3–5 books per shelf
+            const bookCount = 3 + (si % 3);
+            const clusterWidth = innerWidth * 0.7;
+            const startX = -(clusterWidth / 2) + (si % 2) * (innerWidth * 0.15);
+
+            for (let bi = 0; bi < bookCount; bi++) {
+                const bookW = 0.02 + Math.random() * 0.015;
+                const bookH = dims.height * 0.12 + Math.random() * dims.height * 0.05;
+                const bookD = dims.depth * 0.55 + Math.random() * dims.depth * 0.15;
+                const bookGeo = new THREE.BoxGeometry(bookW, bookH, bookD);
+                const bookMat = FurnitureFactory3D._createMaterial(
+                    bookColours[(si * 3 + bi) % bookColours.length], 0.85, 0.02
+                );
+                const book = new THREE.Mesh(bookGeo, bookMat);
+                book.position.set(
+                    startX + bi * (clusterWidth / bookCount),
+                    shelfY + bookH / 2,
+                    0
+                );
+                // Slight tilt for realism
+                book.rotation.z = (bi % 3 === 1) ? 0.05 : 0;
+                FurnitureFactory3D._enableShadows(book);
+                group.add(book);
+            }
         }
 
         return group;
