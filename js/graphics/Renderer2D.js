@@ -1200,6 +1200,29 @@ class Renderer2D {
     }
     
     /**
+     * Return a contrast-aware text colour for a given background hex colour.
+     * Uses the W3C relative luminance formula to decide between white (#FFFFFF)
+     * for dark backgrounds and dark grey (#333333) for light backgrounds.
+     *
+     * @param {string} hex - Background hex colour string (e.g. '#DEB887')
+     * @returns {string} '#FFFFFF' or '#333333'
+     * @private
+     */
+    _getContrastColour(hex) {
+        const sanitised = (hex || '#5C4033').replace('#', '');
+        const r = parseInt(sanitised.substring(0, 2), 16) / 255;
+        const g = parseInt(sanitised.substring(2, 4), 16) / 255;
+        const b = parseInt(sanitised.substring(4, 6), 16) / 255;
+
+        // sRGB to linear conversion for each channel
+        const toLinear = (c) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+
+        // WCAG threshold: luminance > 0.179 is "light" → use dark text
+        return luminance > 0.179 ? '#333333' : '#FFFFFF';
+    }
+    
+    /**
      * Get an abbreviated 2-letter label for a furniture type.
      * Used when furniture is too small for a full label but large enough
      * for an abbreviation.
@@ -1262,14 +1285,18 @@ class Renderer2D {
                 .join(' ');
         }
         
+        // Choose contrast-aware text colour based on furniture background
+        const textColour = this._getContrastColour(item.colour);
+        const isLightText = textColour === '#FFFFFF';
+
         ctx.save();
         ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        ctx.fillStyle = RENDER_COLOURS.FURNITURE_LABEL;
+        ctx.fillStyle = textColour;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Text shadow for readability against any background colour
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        // Text shadow for readability — dark shadow for light text, light shadow for dark text
+        ctx.shadowColor = isLightText ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.6)';
         ctx.shadowBlur = 2;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
@@ -1409,7 +1436,42 @@ class Renderer2D {
             ctx.fillText(badgeText, handleCX, badgeY + badgeH / 2);
         }
         
+        // --- Furniture dimension label ("1.6m × 0.9m") below selection ---
+        this._drawFurnitureDimensions(item, x, y, scaledWidth, scaledDepth);
+        
         ctx.restore();
+    }
+    
+    /**
+     * Draw real-world dimension label below a selected furniture item.
+     *
+     * Shows the item's width and depth in meters (e.g. "1.6m × 0.9m")
+     * positioned just below the selection border, centred horizontally.
+     * Reinforces the scaling requirement (FR4) and supports the
+     * consultation scenario.
+     *
+     * @param {Object} item - Furniture item with width and depth in meters
+     * @param {number} x - Selection box X (top-left, may be relative to rotation centre)
+     * @param {number} y - Selection box Y
+     * @param {number} w - Selection box width in pixels
+     * @param {number} h - Selection box height (depth) in pixels
+     * @private
+     */
+    _drawFurnitureDimensions(item, x, y, w, h) {
+        if (!this.ctx || !item) return;
+
+        const ctx = this.ctx;
+        const widthM = (item.width || 0).toFixed(1);
+        const depthM = (item.depth || 0).toFixed(1);
+        const dimText = `${widthM}m \u00d7 ${depthM}m`;
+
+        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = RENDER_COLOURS.DIMENSION_LABEL;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        // Position below the selection border (4px border offset + 6px gap)
+        ctx.fillText(dimText, x + w / 2, y + h + 10);
     }
     
     /**

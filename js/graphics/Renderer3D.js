@@ -236,8 +236,12 @@ class Renderer3D {
         this.directionalLight.shadow.camera.near = 0.5;
         this.directionalLight.shadow.camera.far = 50;
 
-        // Reduce shadow artefacts
-        this.directionalLight.shadow.bias = -0.001;
+        // Reduce shadow artefacts — bias prevents shadow acne (dark
+        // speckles on lit surfaces), normalBias handles curved/angled
+        // geometry, and radius enables soft-edged shadows via PCFSoftShadowMap
+        this.directionalLight.shadow.bias = -0.0001;
+        this.directionalLight.shadow.normalBias = 0.02;
+        this.directionalLight.shadow.radius = 2;
 
         this.scene.add(this.directionalLight);
 
@@ -641,29 +645,6 @@ class Renderer3D {
             furnitureGroup.userData.furnitureId = item.id || '';
             furnitureGroup.userData.furnitureType = item.type || 'unknown';
 
-            // --- Soft contact shadow beneath furniture ---
-            // MeshBasicMaterial is intentional here: shadow decals must stay
-            // consistently dark regardless of lighting (not a furniture mesh).
-            const shadowRadiusX = (itemWidth * 0.45);
-            const shadowRadiusZ = (itemDepth * 0.45);
-            const shadowGeo = new THREE.CircleGeometry(
-                Math.max(shadowRadiusX, shadowRadiusZ), 32
-            );
-            const shadowMat = new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                transparent: true,
-                opacity: 0.12,
-                depthWrite: false
-            });
-            const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-            shadow.rotation.x = -Math.PI / 2; // Lay flat on floor
-            shadow.position.y = 0.002;         // Just above floor to prevent z-fighting
-            // Scale to ellipse matching furniture footprint ratio
-            if (shadowRadiusX !== shadowRadiusZ) {
-                const maxR = Math.max(shadowRadiusX, shadowRadiusZ);
-                shadow.scale.set(shadowRadiusX / maxR, shadowRadiusZ / maxR, 1);
-            }
-            furnitureGroup.add(shadow);
 
             this.scene.add(furnitureGroup);
             this.furnitureMeshes.set(item.id, furnitureGroup);
