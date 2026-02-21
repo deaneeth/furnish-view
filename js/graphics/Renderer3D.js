@@ -288,9 +288,10 @@ class Renderer3D {
             envMapIntensity: 0.4
         });
 
-        // Wall material with subtle roughness variation
+        // Procedural paint texture for realistic walls
+        const wallTexture = this._createWallTexture(wallColour);
         const wallMaterial = new THREE.MeshStandardMaterial({
-            color: wallColour,
+            map: wallTexture,
             roughness: 0.75,
             metalness: 0.02,
             side: THREE.DoubleSide
@@ -688,14 +689,16 @@ class Renderer3D {
     _clearRoomMeshes() {
         for (const obj of this.roomMeshes) {
             this.scene.remove(obj);
-            // Recursively dispose geometries and materials (handles Groups like the grid)
+            // Recursively dispose geometries, textures, and materials
             obj.traverse((child) => {
                 if (child.geometry) child.geometry.dispose();
                 if (child.material) {
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        child.material.dispose();
+                    const materials = Array.isArray(child.material)
+                        ? child.material : [child.material];
+                    for (const mat of materials) {
+                        // Dispose texture maps to free GPU memory
+                        if (mat.map) mat.map.dispose();
+                        mat.dispose();
                     }
                 }
             });
@@ -959,6 +962,68 @@ class Renderer3D {
         texture.minFilter = THREE.LinearMipmapLinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+
+        return texture;
+    }
+
+    /**
+     * Create a procedural wall paint/plaster texture using Canvas 2D.
+     *
+     * Generates subtle per-pixel noise (±2% lightness variation) over the
+     * base colour to simulate a real painted wall surface. Faint horizontal
+     * lines at 32px intervals add a subtle panel/plaster joint effect.
+     *
+     * @param {string} baseColour - Hex colour for the wall
+     * @returns {THREE.CanvasTexture} Wall paint texture
+     * @private
+     */
+    _createWallTexture(baseColour) {
+        const SIZE = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext('2d');
+
+        // Parse base colour to RGB
+        const hex = (baseColour || '#E8E0D4').replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+
+        // Fill with base colour
+        ctx.fillStyle = baseColour || '#E8E0D4';
+        ctx.fillRect(0, 0, SIZE, SIZE);
+
+        // Subtle per-pixel noise — ±2% lightness variation
+        // Uses deterministic seed per pixel position for consistency
+        const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const px = (i / 4) % SIZE;
+            const py = Math.floor((i / 4) / SIZE);
+            // Simple deterministic noise from position
+            const noise = ((px * 7 + py * 13) % 17 - 8) * 1.3;
+            data[i]     = Math.max(0, Math.min(255, r + noise));       // R
+            data[i + 1] = Math.max(0, Math.min(255, g + noise * 0.9)); // G
+            data[i + 2] = Math.max(0, Math.min(255, b + noise * 0.7)); // B
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        // Faint horizontal panel lines at ~32px intervals
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.03)';
+        ctx.lineWidth = 1;
+        for (let y = 32; y < SIZE; y += 32) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(SIZE, y);
+            ctx.stroke();
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
 
         return texture;
     }
