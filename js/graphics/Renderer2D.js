@@ -714,8 +714,13 @@ class Renderer2D {
     _drawAllFurniture() {
         if (!this.furniture || this.furniture.length === 0) return;
         
+        // Two-pass rendering: draw rugs first (lower z-order) so other
+        // furniture items render on top of them, like a real floor plan.
         for (const item of this.furniture) {
-            this._drawFurnitureItem(item);
+            if (item.type === 'rug') this._drawFurnitureItem(item);
+        }
+        for (const item of this.furniture) {
+            if (item.type !== 'rug') this._drawFurnitureItem(item);
         }
     }
     
@@ -804,6 +809,18 @@ class Renderer2D {
                 break;
             case 'desk':
                 this._drawDeskShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'tv-stand':
+                this._drawTvStandShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'bed':
+                this._drawBedShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'wardrobe':
+                this._drawWardrobeShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'rug':
+                this._drawRugShape(x, y, w, h, fillColour, strokeColour);
                 break;
             default:
                 this._drawDefaultShape(x, y, w, h, fillColour, strokeColour);
@@ -1126,6 +1143,170 @@ class Renderer2D {
     }
     
     /**
+     * Draw TV stand silhouette: rounded rect + horizontal divider + 2 knob circles.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawTvStandShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.08;
+        
+        // Main surface
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Horizontal divider through middle
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y + h * 0.45);
+        ctx.lineTo(x + w - 2, y + h * 0.45);
+        ctx.stroke();
+        
+        // 2 small knob circles
+        const knobR = Math.max(1.5, Math.min(w, h) * 0.05);
+        ctx.fillStyle = stroke;
+        ctx.beginPath();
+        ctx.arc(x + w * 0.35, y + h * 0.72, knobR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + w * 0.65, y + h * 0.72, knobR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    /**
+     * Draw bed silhouette: rect with headboard strip + 2 pillows + duvet fold.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawBedShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        
+        // Mattress area
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.strokeRect(x, y, w, h);
+        
+        // Headboard — darker strip at top edge
+        const headH = Math.max(3, h * 0.08);
+        ctx.fillStyle = stroke;
+        ctx.fillRect(x, y, w, headH);
+        
+        // 2 pillows near headboard
+        const pillowW = w * 0.35;
+        const pillowH = Math.max(4, h * 0.1);
+        const pillowY = y + headH + 4;
+        const pillowR = Math.min(pillowW, pillowH) * 0.3;
+        const pillowLight = this._darkenHex(fill, -0.1);
+        
+        ctx.fillStyle = pillowLight;
+        this._drawRoundedRect(x + w * 0.08, pillowY, pillowW, pillowH, pillowR);
+        ctx.fill();
+        this._drawRoundedRect(x + w * 0.57, pillowY, pillowW, pillowH, pillowR);
+        ctx.fill();
+        
+        // Subtle duvet fold line across middle
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + h * 0.55);
+        ctx.lineTo(x + w - 3, y + h * 0.55);
+        ctx.stroke();
+    }
+    
+    /**
+     * Draw wardrobe silhouette: rect + vertical centre line + 2 handle rects.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawWardrobeShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        
+        // Main body
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.strokeRect(x, y, w, h);
+        
+        // Vertical centre line (door division)
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y + 2);
+        ctx.lineTo(x + w / 2, y + h - 2);
+        ctx.stroke();
+        
+        // 2 handle rectangles (on each door half)
+        const handleW = Math.max(2, w * 0.04);
+        const handleH = Math.max(4, h * 0.15);
+        ctx.fillStyle = stroke;
+        ctx.fillRect(x + w / 2 - handleW - 3, y + h * 0.42, handleW, handleH);
+        ctx.fillRect(x + w / 2 + 3, y + h * 0.42, handleW, handleH);
+    }
+    
+    /**
+     * Draw rug silhouette: semi-transparent filled rect with darker border.
+     *
+     * Alpha is reduced so the floor grid shows through the rug, matching
+     * the architectural floor plan convention.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawRugShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        
+        // Main rug fill
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        
+        // Darker border frame
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+        
+        // Inner thinner border to suggest rug fringe/edge pattern
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 5, y + 5, w - 10, h - 10);
+        
+        ctx.restore();
+    }
+    
+    /**
      * Draw default furniture silhouette: plain filled rectangle.
      * Used as fallback for unknown furniture types.
      * 
@@ -1240,7 +1421,11 @@ class Renderer2D {
             'armchair': 'AC',
             'coffee-table': 'CT',
             'bookshelf': 'BS',
-            'desk': 'DK'
+            'desk': 'DK',
+            'tv-stand': 'TV',
+            'bed': 'BD',
+            'wardrobe': 'WR',
+            'rug': 'RG'
         };
         return abbreviations[type] || type.charAt(0).toUpperCase();
     }

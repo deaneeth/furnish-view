@@ -84,6 +84,42 @@ export const furnitureCatalogue = [
         defaultHeight: 0.75,
         defaultColour: '#DEB887',
         icon: 'desk'
+    },
+    {
+        type: 'tv-stand',
+        label: 'TV Stand',
+        defaultWidth: 1.5,
+        defaultDepth: 0.45,
+        defaultHeight: 0.55,
+        defaultColour: '#3C3C3C',
+        icon: 'tv-stand'
+    },
+    {
+        type: 'bed',
+        label: 'Bed',
+        defaultWidth: 1.6,
+        defaultDepth: 2.0,
+        defaultHeight: 0.5,
+        defaultColour: '#E8DCC8',
+        icon: 'bed'
+    },
+    {
+        type: 'wardrobe',
+        label: 'Wardrobe',
+        defaultWidth: 1.8,
+        defaultDepth: 0.6,
+        defaultHeight: 2.0,
+        defaultColour: '#D2B48C',
+        icon: 'wardrobe'
+    },
+    {
+        type: 'rug',
+        label: 'Rug',
+        defaultWidth: 2.0,
+        defaultDepth: 1.5,
+        defaultHeight: 0.02,
+        defaultColour: '#8B4513',
+        icon: 'rug'
     }
 ];
 
