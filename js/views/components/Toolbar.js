@@ -22,7 +22,11 @@ const FURNITURE_ICONS = {
     'armchair': '💺',
     'coffee-table': '☕',
     'bookshelf': '📚',
-    'desk': '🖥️'
+    'desk': '🖥️',
+    'tv-stand': '📺',
+    'bed': '🛏️',
+    'wardrobe': '🚪',
+    'rug': '🟫'
 };
 
 /**

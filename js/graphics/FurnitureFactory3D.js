@@ -68,6 +68,14 @@ export default class FurnitureFactory3D {
                 return FurnitureFactory3D.createBookshelf(dims, colour);
             case 'desk':
                 return FurnitureFactory3D.createDesk(dims, colour);
+            case 'tv-stand':
+                return FurnitureFactory3D.createTvStand(dims, colour);
+            case 'bed':
+                return FurnitureFactory3D.createBed(dims, colour);
+            case 'wardrobe':
+                return FurnitureFactory3D.createWardrobe(dims, colour);
+            case 'rug':
+                return FurnitureFactory3D.createRug(dims, colour);
             default:
                 return FurnitureFactory3D._createFallbackBox(dims, colour);
         }
@@ -810,5 +818,324 @@ export default class FurnitureFactory3D {
             return clamped.toString(16).padStart(2, '0');
         };
         return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    // ─────────────────────────────────────────────
+    //  9. TV STAND — cabinet body + top + door panels + shelf + legs
+    // ─────────────────────────────────────────────
+
+    /**
+     * Build a TV stand / media unit from composed primitives.
+     *
+     * Components:
+     * - BODY: main cabinet box
+     * - TOP: slightly overhanging surface slab
+     * - DOORS: two front panels (lighter colour)
+     * - SHELF OPENING: dark recessed area in centre top
+     * - LEGS: 4 short cylinders
+     *
+     * @param {{ width: number, depth: number, height: number }} dims
+     * @param {string} colour - Hex colour
+     * @returns {THREE.Group}
+     */
+    static createTvStand(dims, colour) {
+        const { width, depth, height } = dims;
+        const group = new THREE.Group();
+
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 0.65, 0.1);
+        const darkMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._darkenColour(colour, 0.75), 0.7, 0.1
+        );
+        const lightMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._lightenColour(colour, 1.12), 0.65, 0.1
+        );
+
+        const legH = 0.08;
+        const bodyH = height * 0.7;
+        const topH = 0.03;
+
+        // Cabinet body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(width, bodyH, depth), mainMat);
+        body.position.y = legH + bodyH / 2;
+        FurnitureFactory3D._enableShadows(body);
+        group.add(body);
+
+        // Top surface
+        const top = new THREE.Mesh(
+            new THREE.BoxGeometry(width + 0.02, topH, depth + 0.02), mainMat
+        );
+        top.position.y = legH + bodyH + topH / 2;
+        FurnitureFactory3D._enableShadows(top);
+        group.add(top);
+
+        // Two door panels on front face
+        const doorW = width * 0.46;
+        const doorH = bodyH * 0.75;
+        const doorGap = width * 0.02;
+        const doorZ = depth / 2 + 0.005;
+
+        const leftDoor = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.02), lightMat);
+        leftDoor.position.set(-doorGap / 2 - doorW / 2, legH + bodyH * 0.4, doorZ);
+        FurnitureFactory3D._enableShadows(leftDoor);
+        group.add(leftDoor);
+
+        const rightDoor = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.02), lightMat);
+        rightDoor.position.set(doorGap / 2 + doorW / 2, legH + bodyH * 0.4, doorZ);
+        FurnitureFactory3D._enableShadows(rightDoor);
+        group.add(rightDoor);
+
+        // Open shelf recess in centre top
+        const shelfW = width * 0.3;
+        const shelfH = bodyH * 0.2;
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(shelfW, shelfH, depth * 0.8), darkMat);
+        shelf.position.set(0, legH + bodyH - shelfH / 2, 0);
+        FurnitureFactory3D._enableShadows(shelf);
+        group.add(shelf);
+
+        // 4 short legs
+        const legGeo = new THREE.CylinderGeometry(0.02, 0.02, legH, 8);
+        const inX = width / 2 - 0.06;
+        const inZ = depth / 2 - 0.06;
+        [[-inX, -inZ], [inX, -inZ], [-inX, inZ], [inX, inZ]].forEach(([lx, lz]) => {
+            const leg = new THREE.Mesh(legGeo, darkMat);
+            leg.position.set(lx, legH / 2, lz);
+            FurnitureFactory3D._enableShadows(leg);
+            group.add(leg);
+        });
+
+        return group;
+    }
+
+    // ─────────────────────────────────────────────
+    //  10. BED — frame + mattress + headboard + pillows
+    // ─────────────────────────────────────────────
+
+    /**
+     * Build a bed from composed primitives.
+     *
+     * Components:
+     * - FRAME: base box (darker colour)
+     * - MATTRESS: slightly inset box on top (main colour)
+     * - HEADBOARD: tall panel at one short end (frame colour)
+     * - PILLOWS (×2): small boxes near headboard (white)
+     *
+     * @param {{ width: number, depth: number, height: number }} dims
+     * @param {string} colour - Hex colour
+     * @returns {THREE.Group}
+     */
+    static createBed(dims, colour) {
+        const { width, depth, height } = dims;
+        const group = new THREE.Group();
+
+        const frameMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._darkenColour(colour, 0.75), 0.7, 0.1
+        );
+        const mattressMat = FurnitureFactory3D._createMaterial(colour, 0.85, 0.02);
+        const pillowMat = FurnitureFactory3D._createMaterial('#FFFFFF', 0.9, 0.0);
+
+        const frameH = height * 0.3;
+        const mattressH = height * 0.35;
+
+        // Bed frame base
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(width, frameH, depth), frameMat);
+        frame.position.y = frameH / 2;
+        FurnitureFactory3D._enableShadows(frame);
+        group.add(frame);
+
+        // Mattress (slightly inset)
+        const mattress = new THREE.Mesh(
+            new THREE.BoxGeometry(width - 0.05, mattressH, depth - 0.1), mattressMat
+        );
+        mattress.position.y = frameH + mattressH / 2;
+        FurnitureFactory3D._enableShadows(mattress);
+        group.add(mattress);
+
+        // Headboard (tall panel at one short end, –Z side)
+        const headboardH = height * 0.7;
+        const headboard = new THREE.Mesh(
+            new THREE.BoxGeometry(width, headboardH, 0.08), frameMat
+        );
+        headboard.position.set(0, headboardH / 2, -depth / 2 + 0.04);
+        FurnitureFactory3D._enableShadows(headboard);
+        group.add(headboard);
+
+        // 2 Pillows near headboard
+        const pillowW = width * 0.35;
+        const pillowH = 0.1;
+        const pillowD = 0.3;
+        const pillowY = frameH + mattressH + pillowH / 2;
+        const pillowZ = -depth / 2 + 0.35;
+
+        const leftPillow = new THREE.Mesh(
+            new THREE.BoxGeometry(pillowW, pillowH, pillowD), pillowMat
+        );
+        leftPillow.position.set(-width * 0.2, pillowY, pillowZ);
+        FurnitureFactory3D._enableShadows(leftPillow);
+        group.add(leftPillow);
+
+        const rightPillow = new THREE.Mesh(
+            new THREE.BoxGeometry(pillowW, pillowH, pillowD), pillowMat
+        );
+        rightPillow.position.set(width * 0.2, pillowY, pillowZ);
+        FurnitureFactory3D._enableShadows(rightPillow);
+        group.add(rightPillow);
+
+        return group;
+    }
+
+    // ─────────────────────────────────────────────
+    //  11. WARDROBE — body + doors + handles + plinth + cornice
+    // ─────────────────────────────────────────────
+
+    /**
+     * Build a wardrobe from composed primitives.
+     *
+     * Components:
+     * - BODY: main box
+     * - DOORS (×2): front panels (lighter colour)
+     * - HANDLES (×2): vertical cylinder bars
+     * - PLINTH: darker base strip
+     * - CORNICE: slight overhang at top
+     *
+     * @param {{ width: number, depth: number, height: number }} dims
+     * @param {string} colour - Hex colour
+     * @returns {THREE.Group}
+     */
+    static createWardrobe(dims, colour) {
+        const { width, depth, height } = dims;
+        const group = new THREE.Group();
+
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 0.7, 0.1);
+        const darkMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._darkenColour(colour, 0.8), 0.7, 0.1
+        );
+        const lightMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._lightenColour(colour, 1.08), 0.65, 0.1
+        );
+        const handleMat = FurnitureFactory3D._createMaterial('#888888', 0.4, 0.6);
+
+        const plinthH = 0.06;
+        const corniceH = 0.05;
+
+        // Main body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mainMat);
+        body.position.y = height / 2;
+        FurnitureFactory3D._enableShadows(body);
+        group.add(body);
+
+        // Two door panels
+        const doorW = width * 0.48;
+        const doorH = height * 0.9;
+        const doorZ = depth / 2 + 0.012;
+        const doorGap = width * 0.01;
+
+        const leftDoor = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.025), lightMat);
+        leftDoor.position.set(-doorGap - doorW / 2, height * 0.48, doorZ);
+        FurnitureFactory3D._enableShadows(leftDoor);
+        group.add(leftDoor);
+
+        const rightDoor = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.025), lightMat);
+        rightDoor.position.set(doorGap + doorW / 2, height * 0.48, doorZ);
+        FurnitureFactory3D._enableShadows(rightDoor);
+        group.add(rightDoor);
+
+        // Handle bars (vertical cylinders on each door)
+        const handleH = height * 0.15;
+        const handleGeo = new THREE.CylinderGeometry(0.01, 0.01, handleH, 8);
+
+        const leftHandle = new THREE.Mesh(handleGeo, handleMat);
+        leftHandle.position.set(-doorGap - 0.03, height * 0.48, doorZ + 0.02);
+        FurnitureFactory3D._enableShadows(leftHandle);
+        group.add(leftHandle);
+
+        const rightHandle = new THREE.Mesh(handleGeo, handleMat);
+        rightHandle.position.set(doorGap + 0.03, height * 0.48, doorZ + 0.02);
+        FurnitureFactory3D._enableShadows(rightHandle);
+        group.add(rightHandle);
+
+        // Base plinth
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(width, plinthH, depth), darkMat);
+        plinth.position.y = plinthH / 2;
+        FurnitureFactory3D._enableShadows(plinth);
+        group.add(plinth);
+
+        // Top cornice (slight overhang)
+        const cornice = new THREE.Mesh(
+            new THREE.BoxGeometry(width + 0.04, corniceH, depth + 0.02), darkMat
+        );
+        cornice.position.y = height + corniceH / 2;
+        FurnitureFactory3D._enableShadows(cornice);
+        group.add(cornice);
+
+        return group;
+    }
+
+    // ─────────────────────────────────────────────
+    //  12. RUG — flat box with border strips
+    // ─────────────────────────────────────────────
+
+    /**
+     * Build a rug from composed primitives.
+     *
+     * Essentially flat on the floor. Does NOT cast shadows (it is on the floor)
+     * but DOES receive shadows (furniture shadows appear on it).
+     *
+     * Components:
+     * - MAIN SURFACE: very thin box (height = 0.02)
+     * - BORDER STRIPS (×4): thin darker-coloured edges
+     *
+     * @param {{ width: number, depth: number, height: number }} dims
+     * @param {string} colour - Hex colour
+     * @returns {THREE.Group}
+     */
+    static createRug(dims, colour) {
+        const { width, depth } = dims;
+        const group = new THREE.Group();
+
+        const rugH = 0.02;
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 1.0, 0.0);
+        const borderMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._darkenColour(colour, 0.75), 1.0, 0.0
+        );
+
+        // Main rug surface
+        const surface = new THREE.Mesh(new THREE.BoxGeometry(width, rugH, depth), mainMat);
+        surface.position.y = rugH / 2;
+        surface.castShadow = false;
+        surface.receiveShadow = true;
+        group.add(surface);
+
+        // Border strips (4 thin edges creating a frame pattern)
+        const borderW = 0.04;
+
+        // Front and back border strips (along width)
+        const fbGeo = new THREE.BoxGeometry(width, rugH + 0.002, borderW);
+        const frontBorder = new THREE.Mesh(fbGeo, borderMat);
+        frontBorder.position.set(0, rugH / 2, depth / 2 - borderW / 2);
+        frontBorder.castShadow = false;
+        frontBorder.receiveShadow = true;
+        group.add(frontBorder);
+
+        const backBorder = new THREE.Mesh(fbGeo, borderMat);
+        backBorder.position.set(0, rugH / 2, -depth / 2 + borderW / 2);
+        backBorder.castShadow = false;
+        backBorder.receiveShadow = true;
+        group.add(backBorder);
+
+        // Left and right border strips (along depth)
+        const lrGeo = new THREE.BoxGeometry(borderW, rugH + 0.002, depth);
+        const leftBorder = new THREE.Mesh(lrGeo, borderMat);
+        leftBorder.position.set(-width / 2 + borderW / 2, rugH / 2, 0);
+        leftBorder.castShadow = false;
+        leftBorder.receiveShadow = true;
+        group.add(leftBorder);
+
+        const rightBorder = new THREE.Mesh(lrGeo, borderMat);
+        rightBorder.position.set(width / 2 - borderW / 2, rugH / 2, 0);
+        rightBorder.castShadow = false;
+        rightBorder.receiveShadow = true;
+        group.add(rightBorder);
+
+        return group;
     }
 }
