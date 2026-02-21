@@ -44,10 +44,10 @@ const SHADOW_MAP_SIZE = 2048;
 const SCENE_BACKGROUND = 0xf0f4f8;
 
 /**
- * Fog density for atmospheric depth — very low to just soften distant walls
+ * Fog density for atmospheric depth — gentle fade for warmth
  * @type {number}
  */
-const FOG_DENSITY = 0.015;
+const FOG_DENSITY = 0.02;
 
 /**
  * Skirting board height in meters
@@ -123,6 +123,9 @@ class Renderer3D {
         /** @type {THREE.PointLight|null} Dim ceiling light for even fill */
         this.pointLight = null;
 
+        /** @type {THREE.PointLight|null} Warm fill light from opposite side */
+        this.fillLight = null;
+
         // Initialise the scene pipeline
         this.initScene();
         this.setupLighting();
@@ -174,9 +177,9 @@ class Renderer3D {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // ACES Filmic tone mapping — more natural colour rendering
+        // ACES Filmic tone mapping — warm, natural colour rendering
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.toneMappingExposure = 1.15;
 
         // SRGB colour space for correct gamma (r160+)
         if (THREE.SRGBColorSpace) {
@@ -198,26 +201,24 @@ class Renderer3D {
      * Shadow camera bounds are set generously and adjusted when room data arrives.
      */
     setupLighting() {
-        // Ambient light — white at 0.6 provides even 60% base fill
-        // across all surfaces so interior walls are never pure black
+        // Ambient light — warm white for cosy interior feel
         this.ambientLight = new THREE.AmbientLight(
-            0xffffff,
+            0xfff5e6,
             THREE_CONFIG.ambientLightIntensity
         );
         this.scene.add(this.ambientLight);
 
-        // Hemisphere light — soft sky/ground gradient for natural fill
+        // Hemisphere light — warm ceiling / warm floor bounce
         this.hemisphereLight = new THREE.HemisphereLight(
-            0xddeeff, // Sky colour (cool white-blue)
+            0xffecd2, // Sky colour (warm cream)
             0x8B7355, // Ground colour (warm floor tone)
-            0.3       // Subtle intensity
+            0.35
         );
         this.scene.add(this.hemisphereLight);
 
-        // Directional light — creates shadows and visible shading
-        // Positioned to shine down into the room interior
+        // Directional light — warm key light creating shadows
         this.directionalLight = new THREE.DirectionalLight(
-            0xffffff,
+            0xfff0d4,
             THREE_CONFIG.directionalLightIntensity
         );
         this.directionalLight.position.set(3, 10, 5);
@@ -240,12 +241,16 @@ class Renderer3D {
 
         this.scene.add(this.directionalLight);
 
-        // Dim ceiling point light — simulates a room ceiling fixture
-        // for more even illumination of interior surfaces.
-        // Position is updated when room data arrives in buildRoom().
-        this.pointLight = new THREE.PointLight(0xffffff, 0.2, 30);
+        // Warm ceiling point light — simulates interior room fixture
+        this.pointLight = new THREE.PointLight(0xffe8c0, 0.35, 30);
         this.pointLight.position.set(0, 2.5, 0);
         this.scene.add(this.pointLight);
+
+        // Secondary fill light — subtle warm light from opposite side
+        // to reduce harsh shadow contrast and lift interior detail
+        this.fillLight = new THREE.PointLight(0xffd9a0, 0.15, 20);
+        this.fillLight.position.set(-2, 1.5, 2);
+        this.scene.add(this.fillLight);
     }
 
     /**
@@ -269,17 +274,21 @@ class Renderer3D {
         const floorColour = room.floorColour || '#8B7355';
         const isLShaped = room.shape === 'l-shaped';
 
+        // Procedural tile texture for realistic floor
+        const floorTexture = this._createTileTexture(floorColour, roomWidth, roomDepth);
         const floorMaterial = new THREE.MeshStandardMaterial({
-            color: floorColour,
-            roughness: 0.8,
-            metalness: 0.1,
-            side: THREE.DoubleSide
+            map: floorTexture,
+            roughness: 0.55,
+            metalness: 0.12,
+            side: THREE.DoubleSide,
+            envMapIntensity: 0.4
         });
 
+        // Wall material with subtle roughness variation
         const wallMaterial = new THREE.MeshStandardMaterial({
             color: wallColour,
-            roughness: 0.7,
-            metalness: 0.05,
+            roughness: 0.75,
+            metalness: 0.02,
             side: THREE.DoubleSide
         });
 
@@ -290,23 +299,16 @@ class Renderer3D {
         }
 
         // --- Floor grid overlay for scale reference ---
-        // GridHelper at 1-metre intervals, raised slightly above floor to prevent z-fighting
+        // Custom line grid clipped to exact room dimensions (GridHelper creates a
+        // square that overflows the smaller dimension, so we draw our own lines).
         if (this.gridHelper) {
             this.scene.remove(this.gridHelper);
-            this.gridHelper.dispose();
+            if (this.gridHelper.geometry) this.gridHelper.geometry.dispose();
+            if (this.gridHelper.material) this.gridHelper.material.dispose();
         }
-        const gridSize = Math.max(roomWidth, roomDepth);
-        this.gridHelper = new THREE.GridHelper(gridSize, gridSize, 0xcccccc, 0xe0e0e0);
-        this.gridHelper.position.y = 0.001;
-
-        // GridHelper may use a single material or an array — handle both
-        const gridMats = Array.isArray(this.gridHelper.material)
-            ? this.gridHelper.material
-            : [this.gridHelper.material];
-        for (const mat of gridMats) {
-            mat.opacity = 0.4;
-            mat.transparent = true;
-        }
+        const gridGroup = this._buildRoomGrid(roomWidth, roomDepth);
+        gridGroup.position.y = 0.002;
+        this.gridHelper = gridGroup;
         this.scene.add(this.gridHelper);
         this.roomMeshes.add(this.gridHelper);
 
@@ -330,6 +332,11 @@ class Renderer3D {
         // --- Reposition ceiling point light ---
         if (this.pointLight) {
             this.pointLight.position.set(0, roomHeight - 0.1, 0);
+        }
+
+        // --- Reposition fill light for secondary illumination ---
+        if (this.fillLight) {
+            this.fillLight.position.set(-roomWidth * 0.3, roomHeight * 0.6, roomDepth * 0.3);
         }
 
         // --- Camera: "showroom" angle (standing at door looking in) ---
@@ -698,18 +705,19 @@ class Renderer3D {
      * @private
      */
     _clearRoomMeshes() {
-        for (const mesh of this.roomMeshes) {
-            this.scene.remove(mesh);
-            if (mesh.geometry) {
-                mesh.geometry.dispose();
-            }
-            if (mesh.material) {
-                if (Array.isArray(mesh.material)) {
-                    mesh.material.forEach(m => m.dispose());
-                } else {
-                    mesh.material.dispose();
+        for (const obj of this.roomMeshes) {
+            this.scene.remove(obj);
+            // Recursively dispose geometries and materials (handles Groups like the grid)
+            obj.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
                 }
-            }
+            });
         }
         this.roomMeshes.clear();
 
@@ -848,6 +856,133 @@ class Renderer3D {
     }
 
     /**
+     * Build a custom grid confined to the exact room width and depth.
+     *
+     * Unlike THREE.GridHelper (which always produces a square), this draws
+     * lines only within the room footprint so nothing leaks outside the walls.
+     *
+     * @param {number} w - Room width
+     * @param {number} d - Room depth
+     * @returns {THREE.Group} Group containing grid line segments
+     * @private
+     */
+    _buildRoomGrid(w, d) {
+        const group = new THREE.Group();
+        const material = new THREE.LineBasicMaterial({
+            color: 0xb0a090,
+            transparent: true,
+            opacity: 0.35
+        });
+
+        const hw = w / 2;
+        const hd = d / 2;
+
+        // Lines along X (varying Z)
+        for (let z = 0; z <= d; z++) {
+            const points = [
+                new THREE.Vector3(-hw, 0, -hd + z),
+                new THREE.Vector3(hw, 0, -hd + z)
+            ];
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            group.add(new THREE.Line(geo, material));
+        }
+
+        // Lines along Z (varying X)
+        for (let x = 0; x <= w; x++) {
+            const points = [
+                new THREE.Vector3(-hw + x, 0, -hd),
+                new THREE.Vector3(-hw + x, 0, hd)
+            ];
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            group.add(new THREE.Line(geo, material));
+        }
+
+        return group;
+    }
+
+    /**
+     * Create a procedural tile texture for the floor using Canvas 2D.
+     *
+     * Draws a realistic tile pattern with grout lines, subtle colour variation
+     * per tile, and a gentle specular highlight in each tile center.
+     * Returns a THREE.CanvasTexture that tiles across the floor surface.
+     *
+     * @param {string} baseColour - Hex colour for the floor
+     * @param {number} roomWidth - Room width in meters
+     * @param {number} roomDepth - Room depth in meters
+     * @returns {THREE.CanvasTexture} Tiled floor texture
+     * @private
+     */
+    _createTileTexture(baseColour, roomWidth, roomDepth) {
+        const tileSize = 128; // px per tile in the texture
+        const tilesX = Math.max(2, Math.round(roomWidth));
+        const tilesZ = Math.max(2, Math.round(roomDepth));
+        const canvasW = tilesX * tileSize;
+        const canvasH = tilesZ * tileSize;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasW;
+        canvas.height = canvasH;
+        const ctx = canvas.getContext('2d');
+
+        // Parse base colour to RGB
+        const hex = baseColour.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+
+        // Grout colour — slightly lighter than base
+        const groutR = Math.min(255, r + 30);
+        const groutG = Math.min(255, g + 25);
+        const groutB = Math.min(255, b + 20);
+        const groutWidth = 3;
+
+        // Fill entire canvas with grout colour
+        ctx.fillStyle = `rgb(${groutR},${groutG},${groutB})`;
+        ctx.fillRect(0, 0, canvasW, canvasH);
+
+        // Draw each tile with subtle colour variation
+        for (let tx = 0; tx < tilesX; tx++) {
+            for (let tz = 0; tz < tilesZ; tz++) {
+                // Per-tile colour variation — seeded by position for consistency
+                const seed = (tx * 7 + tz * 13) % 20;
+                const variation = (seed - 10) * 1.5;
+                const tileR = Math.max(0, Math.min(255, r + variation));
+                const tileG = Math.max(0, Math.min(255, g + variation * 0.8));
+                const tileB = Math.max(0, Math.min(255, b + variation * 0.6));
+
+                const x = tx * tileSize + groutWidth;
+                const y = tz * tileSize + groutWidth;
+                const w = tileSize - groutWidth * 2;
+                const h = tileSize - groutWidth * 2;
+
+                // Tile base fill
+                ctx.fillStyle = `rgb(${Math.round(tileR)},${Math.round(tileG)},${Math.round(tileB)})`;
+                ctx.fillRect(x, y, w, h);
+
+                // Subtle radial highlight in center (simulates lighting reflection)
+                const gradient = ctx.createRadialGradient(
+                    x + w / 2, y + h / 2, 0,
+                    x + w / 2, y + h / 2, w * 0.6
+                );
+                gradient.addColorStop(0, `rgba(255, 248, 230, 0.12)`);
+                gradient.addColorStop(1, `rgba(255, 248, 230, 0)`);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, y, w, h);
+            }
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+
+        return texture;
+    }
+
+    /**
      * Clean up all Three.js resources to prevent memory leaks.
      *
      * Cancels the animation loop, disposes all geometries and materials,
@@ -888,6 +1023,12 @@ class Renderer3D {
         if (this.pointLight) {
             this.scene.remove(this.pointLight);
             this.pointLight = null;
+        }
+
+        // Dispose fill light
+        if (this.fillLight) {
+            this.scene.remove(this.fillLight);
+            this.fillLight = null;
         }
 
         // Dispose controls
