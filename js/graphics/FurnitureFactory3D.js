@@ -101,9 +101,9 @@ export default class FurnitureFactory3D {
      */
     static createChair(dims, colour) {
         const group = new THREE.Group();
-        const mainMat = FurnitureFactory3D._createMaterial(colour, 0.7, 0.1);
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
         const legMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.85), 0.7, 0.1
+            FurnitureFactory3D._getMetalColour(colour), 'METAL'
         );
 
         const seatHeight = dims.height * 0.55; // Y position of seat top surface
@@ -164,7 +164,7 @@ export default class FurnitureFactory3D {
      */
     static createDiningTable(dims, colour) {
         const group = new THREE.Group();
-        const mat = FurnitureFactory3D._createMaterial(colour, 0.6, 0.05);
+        const mat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
 
         const topThickness = 0.05;
 
@@ -180,7 +180,7 @@ export default class FurnitureFactory3D {
         const legHeight = dims.height - topThickness;
         const legGeo = new THREE.CylinderGeometry(legRadius, legRadius, legHeight, 8);
         const legMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.85), 0.6, 0.05
+            FurnitureFactory3D._getMetalColour(colour), 'METAL'
         );
         const inset = 0.08;
         const legPositions = [
@@ -218,7 +218,7 @@ export default class FurnitureFactory3D {
      */
     static createSideTable(dims, colour) {
         const group = new THREE.Group();
-        const mat = FurnitureFactory3D._createMaterial(colour, 0.6, 0.05);
+        const mat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
 
         const topThickness = 0.04;
 
@@ -233,7 +233,7 @@ export default class FurnitureFactory3D {
         const legHeight = dims.height - topThickness;
         const legGeo = new THREE.CylinderGeometry(0.06, 0.08, legHeight, 12);
         const legMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.85), 0.6, 0.05
+            FurnitureFactory3D._getMetalColour(colour), 'METAL'
         );
         const leg = new THREE.Mesh(legGeo, legMat);
         leg.position.y = legHeight / 2;
@@ -274,9 +274,9 @@ export default class FurnitureFactory3D {
      */
     static createSofa(dims, colour) {
         const group = new THREE.Group();
-        const baseMat = FurnitureFactory3D._createMaterial(colour, 0.9, 0.0);
+        const baseMat = FurnitureFactory3D._createMaterial(colour, 'FABRIC');
         const cushionMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._lightenColour(colour, 1.15), 0.9, 0.0
+            FurnitureFactory3D._lightenColour(colour, 1.15), 'FABRIC'
         );
 
         // Seat base
@@ -313,7 +313,7 @@ export default class FurnitureFactory3D {
         // 4 feet — small cubes at corners
         const footGeo = new THREE.BoxGeometry(0.06, 0.04, 0.06);
         const footMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.7), 0.7, 0.1
+            FurnitureFactory3D._darkenColour(colour, 0.7), 'WOOD_MATTE'
         );
         const footOffsetX = dims.width / 2 - 0.08;
         const footOffsetZ = dims.depth * 0.85 / 2 - 0.08;
@@ -333,7 +333,7 @@ export default class FurnitureFactory3D {
 
         // Throw pillows — two small cushions on seat corners for realism
         const pillowMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._lightenColour(colour, 1.25), 0.95, 0.0
+            FurnitureFactory3D._lightenColour(colour, 1.25), 'FABRIC'
         );
         const pillowGeo = new THREE.BoxGeometry(
             dims.width * 0.18, dims.height * 0.18, dims.depth * 0.18
@@ -376,9 +376,9 @@ export default class FurnitureFactory3D {
      */
     static createArmchair(dims, colour) {
         const group = new THREE.Group();
-        const baseMat = FurnitureFactory3D._createMaterial(colour, 0.9, 0.0);
+        const baseMat = FurnitureFactory3D._createMaterial(colour, 'FABRIC');
         const cushionMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._lightenColour(colour, 1.15), 0.9, 0.0
+            FurnitureFactory3D._lightenColour(colour, 1.15), 'FABRIC'
         );
 
         // Seat base
@@ -400,14 +400,15 @@ export default class FurnitureFactory3D {
         group.add(back);
 
         // Left armrest
+        const armMat = FurnitureFactory3D._createMaterial(colour, 'LEATHER');
         const armGeo = new THREE.BoxGeometry(0.1, dims.height * 0.4, dims.depth * 0.75);
-        const leftArm = new THREE.Mesh(armGeo, baseMat);
+        const leftArm = new THREE.Mesh(armGeo, armMat);
         leftArm.position.set(-(dims.width / 2 - 0.05), dims.height * 0.3, 0);
         FurnitureFactory3D._enableShadows(leftArm);
         group.add(leftArm);
 
         // Right armrest
-        const rightArm = new THREE.Mesh(armGeo, baseMat);
+        const rightArm = new THREE.Mesh(armGeo, armMat);
         rightArm.position.set(dims.width / 2 - 0.05, dims.height * 0.3, 0);
         FurnitureFactory3D._enableShadows(rightArm);
         group.add(rightArm);
@@ -415,7 +416,7 @@ export default class FurnitureFactory3D {
         // 4 feet — small cubes
         const footGeo = new THREE.BoxGeometry(0.06, 0.04, 0.06);
         const footMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.7), 0.7, 0.1
+            FurnitureFactory3D._darkenColour(colour, 0.7), 'WOOD_MATTE'
         );
         const footOffsetX = dims.width / 2 - 0.08;
         const footOffsetZ = dims.depth * 0.85 / 2 - 0.06;
@@ -454,9 +455,9 @@ export default class FurnitureFactory3D {
      */
     static createCoffeeTable(dims, colour) {
         const group = new THREE.Group();
-        const mat = FurnitureFactory3D._createMaterial(colour, 0.6, 0.05);
+        const mat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
         const legMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.85), 0.6, 0.05
+            FurnitureFactory3D._darkenColour(colour, 0.85), 'WOOD'
         );
 
         const topThickness = 0.04;
@@ -520,9 +521,9 @@ export default class FurnitureFactory3D {
      */
     static createBookshelf(dims, colour) {
         const group = new THREE.Group();
-        const mat = FurnitureFactory3D._createMaterial(colour, 0.7, 0.1);
+        const mat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
         const backMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.75), 0.7, 0.1
+            FurnitureFactory3D._darkenColour(colour, 0.75), 'WOOD_MATTE'
         );
 
         const panelThickness = 0.03;
@@ -584,7 +585,7 @@ export default class FurnitureFactory3D {
                 const bookD = dims.depth * 0.55 + Math.random() * dims.depth * 0.15;
                 const bookGeo = new THREE.BoxGeometry(bookW, bookH, bookD);
                 const bookMat = FurnitureFactory3D._createMaterial(
-                    bookColours[(si * 3 + bi) % bookColours.length], 0.85, 0.02
+                    bookColours[(si * 3 + bi) % bookColours.length], 'PLASTIC_MATTE'
                 );
                 const book = new THREE.Mesh(bookGeo, bookMat);
                 book.position.set(
@@ -622,9 +623,9 @@ export default class FurnitureFactory3D {
      */
     static createDesk(dims, colour) {
         const group = new THREE.Group();
-        const mat = FurnitureFactory3D._createMaterial(colour, 0.6, 0.05);
+        const mat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
         const accentMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.85), 0.6, 0.05
+            FurnitureFactory3D._darkenColour(colour, 0.85), 'WOOD_MATTE'
         );
 
         const topThickness = 0.04;
@@ -702,7 +703,7 @@ export default class FurnitureFactory3D {
     static _createFallbackBox(dims, colour) {
         const group = new THREE.Group();
         const geo = new THREE.BoxGeometry(dims.width, dims.height, dims.depth);
-        const mat = FurnitureFactory3D._createMaterial(colour, 0.6, 0.15);
+        const mat = FurnitureFactory3D._createMaterial(colour, 'PLASTIC_MATTE');
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.y = dims.height / 2;
         FurnitureFactory3D._enableShadows(mesh);
@@ -715,21 +716,374 @@ export default class FurnitureFactory3D {
     // ─────────────────────────────────────────────
 
     /**
-     * Create a MeshStandardMaterial with the given parameters.
-     * MeshStandardMaterial is used exclusively — MeshBasicMaterial would ignore
-     * scene lighting and fail the shading requirement.
+     * PBR material profiles — named presets for roughness/metalness
+     * so each furniture sub-component looks like its real-world material.
+     * @private
+     */
+    static MATERIAL_PROFILES = {
+        WOOD:          { roughness: 0.75, metalness: 0.05 },
+        WOOD_MATTE:    { roughness: 0.9,  metalness: 0.02 },
+        FABRIC:        { roughness: 1.0,  metalness: 0.0  },
+        METAL:         { roughness: 0.35, metalness: 0.85 },
+        LEATHER:       { roughness: 0.5,  metalness: 0.1  },
+        PLASTIC_MATTE: { roughness: 0.7,  metalness: 0.1  }
+    };
+
+    /**
+     * Create a MeshStandardMaterial using a named PBR profile.
+     * Generates procedural CanvasTextures (colour map + roughness map)
+     * per profile type for realistic surface detail.
+     * PLASTIC_MATTE is left untextured.
      *
      * @param {string} baseColour - Hex colour string
-     * @param {number} [roughness=0.7] - Surface roughness (0 = mirror, 1 = diffuse)
-     * @param {number} [metalness=0.1] - Metallic appearance (0 = non-metal, 1 = metal)
+     * @param {string} [profile='PLASTIC_MATTE'] - Profile key from MATERIAL_PROFILES
      * @returns {THREE.MeshStandardMaterial} Material instance
      */
-    static _createMaterial(baseColour, roughness = 0.7, metalness = 0.1) {
-        return new THREE.MeshStandardMaterial({
+    static _createMaterial(baseColour, profile = 'PLASTIC_MATTE') {
+        const p = FurnitureFactory3D.MATERIAL_PROFILES[profile]
+            || FurnitureFactory3D.MATERIAL_PROFILES.PLASTIC_MATTE;
+
+        const matOpts = {
             color: baseColour,
-            roughness: roughness,
-            metalness: metalness
-        });
+            roughness: p.roughness,
+            metalness: p.metalness
+        };
+
+        // Generate procedural texture maps for supported profiles
+        const textureFn = {
+            WOOD:       FurnitureFactory3D._createWoodTexture,
+            WOOD_MATTE: FurnitureFactory3D._createWoodTexture,
+            FABRIC:     FurnitureFactory3D._createFabricTexture,
+            METAL:      FurnitureFactory3D._createMetalTexture,
+            LEATHER:    FurnitureFactory3D._createLeatherTexture
+        }[profile];
+
+        if (textureFn) {
+            const textures = textureFn(baseColour);
+            matOpts.map = textures.map;
+            if (textures.roughnessMap) {
+                matOpts.roughnessMap = textures.roughnessMap;
+            }
+        }
+
+        return new THREE.MeshStandardMaterial(matOpts);
+    }
+
+    /**
+     * Return a metal-appropriate colour based on the furniture's base colour.
+     * Light furniture → silver-grey (#888888); dark furniture → dark chrome (#555555).
+     *
+     * @param {string} baseColour - Furniture hex colour string
+     * @returns {string} Metal hex colour string
+     * @private
+     */
+    static _getMetalColour(baseColour) {
+        const rgb = FurnitureFactory3D._hexToRgb(baseColour);
+        const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+        return luminance > 0.5 ? '#888888' : '#555555';
+    }
+
+    // ─────────────────────────────────────────────
+    //  PROCEDURAL TEXTURE GENERATORS
+    // ─────────────────────────────────────────────
+
+    /**
+     * Compute the relative luminance of a colour (0–1).
+     * Used to scale texture contrast for dark base colours.
+     *
+     * @param {{ r: number, g: number, b: number }} rgb
+     * @returns {number} Luminance 0 (black) to 1 (white)
+     * @private
+     */
+    static _luminance(rgb) {
+        return (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+    }
+
+    /**
+     * Build a CanvasTexture with standard wrapping/filtering settings.
+     *
+     * @param {HTMLCanvasElement} canvas
+     * @param {number} [repeatX=1]
+     * @param {number} [repeatY=1]
+     * @returns {THREE.CanvasTexture}
+     * @private
+     */
+    static _finishTexture(canvas, repeatX = 1, repeatY = 1) {
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        if (repeatX !== 1 || repeatY !== 1) tex.repeat.set(repeatX, repeatY);
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        return tex;
+    }
+
+    /**
+     * Create a procedural wood grain texture with roughness map.
+     *
+     * Generates horizontal grain streaks with colour warmth variation
+     * (red channel leads), wide growth-ring bands, and wavy knot lines.
+     * The roughness map makes grain grooves catch light differently
+     * from the smooth surface between them.
+     *
+     * @param {string} baseColour - Hex colour string
+     * @returns {{ map: THREE.CanvasTexture, roughnessMap: THREE.CanvasTexture }}
+     * @private
+     */
+    static _createWoodTexture(baseColour) {
+        const SIZE = 128;
+        const rgb = FurnitureFactory3D._hexToRgb(baseColour);
+        const lum = FurnitureFactory3D._luminance(rgb);
+        // Dark colours get stronger contrast so grain stays visible
+        const intensity = lum < 0.35 ? 2.2 : (lum < 0.55 ? 1.4 : 1.0);
+
+        // ── Colour map ──
+        const cCanvas = document.createElement('canvas');
+        cCanvas.width = SIZE;
+        cCanvas.height = SIZE;
+        const cCtx = cCanvas.getContext('2d');
+
+        // ── Roughness map (greyscale) ──
+        const rCanvas = document.createElement('canvas');
+        rCanvas.width = SIZE;
+        rCanvas.height = SIZE;
+        const rCtx = rCanvas.getContext('2d');
+        rCtx.fillStyle = '#b3b3b3'; // base roughness ~0.7
+        rCtx.fillRect(0, 0, SIZE, SIZE);
+
+        // Horizontal grain lines with warmth separation
+        for (let y = 0; y < SIZE; y++) {
+            const grainNoise = ((y * 7 + 3) % 11 - 5) * 2.4 * intensity;
+            // Wide growth-ring bands (~32px period)
+            const ringNoise = Math.sin(y * 0.1) * 8 * intensity;
+            const total = grainNoise + ringNoise;
+
+            // Red channel leads for warm wood tint
+            const r = Math.max(0, Math.min(255, rgb.r + total * 1.2));
+            const g = Math.max(0, Math.min(255, rgb.g + total * 0.85));
+            const b = Math.max(0, Math.min(255, rgb.b + total * 0.5));
+
+            cCtx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+            cCtx.fillRect(0, y, SIZE, 1);
+
+            // Roughness varies with grain — grooves are rougher
+            const rv = Math.max(0, Math.min(255, 178 + total * 0.6));
+            rCtx.fillStyle = `rgb(${Math.round(rv)},${Math.round(rv)},${Math.round(rv)})`;
+            rCtx.fillRect(0, y, SIZE, 1);
+        }
+
+        // Prominent wavy knot-lines
+        cCtx.strokeStyle = `rgba(0,0,0,${0.08 * intensity})`;
+        cCtx.lineWidth = 1;
+        rCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+        rCtx.lineWidth = 1;
+        for (let y = 10; y < SIZE; y += 18 + (y % 7)) {
+            cCtx.beginPath();
+            cCtx.moveTo(0, y);
+            cCtx.quadraticCurveTo(SIZE * 0.3, y + ((y * 3) % 7 - 3), SIZE * 0.6, y + 1);
+            cCtx.quadraticCurveTo(SIZE * 0.8, y - ((y * 2) % 5 - 2), SIZE, y);
+            cCtx.stroke();
+
+            rCtx.beginPath();
+            rCtx.moveTo(0, y);
+            rCtx.quadraticCurveTo(SIZE * 0.3, y + ((y * 3) % 7 - 3), SIZE * 0.6, y + 1);
+            rCtx.quadraticCurveTo(SIZE * 0.8, y - ((y * 2) % 5 - 2), SIZE, y);
+            rCtx.stroke();
+        }
+
+        return {
+            map: FurnitureFactory3D._finishTexture(cCanvas),
+            roughnessMap: FurnitureFactory3D._finishTexture(rCanvas)
+        };
+    }
+
+    /**
+     * Create a procedural fabric weave texture with roughness map.
+     *
+     * Generates a cross-hatch micro-pattern with scale-aware contrast.
+     * The roughness map creates uneven matte quality so light catches
+     * differently on warp vs weft threads.
+     *
+     * @param {string} baseColour - Hex colour string
+     * @returns {{ map: THREE.CanvasTexture, roughnessMap: THREE.CanvasTexture }}
+     * @private
+     */
+    static _createFabricTexture(baseColour) {
+        const SIZE = 64;
+        const rgb = FurnitureFactory3D._hexToRgb(baseColour);
+        const lum = FurnitureFactory3D._luminance(rgb);
+        // Dark colours need much stronger contrast
+        const contrast = lum < 0.3 ? 10 : (lum < 0.5 ? 7 : 5);
+
+        const cCanvas = document.createElement('canvas');
+        cCanvas.width = SIZE;
+        cCanvas.height = SIZE;
+        const cCtx = cCanvas.getContext('2d');
+        cCtx.fillStyle = baseColour;
+        cCtx.fillRect(0, 0, SIZE, SIZE);
+
+        const rCanvas = document.createElement('canvas');
+        rCanvas.width = SIZE;
+        rCanvas.height = SIZE;
+        const rCtx = rCanvas.getContext('2d');
+        rCtx.fillStyle = '#e6e6e6'; // base roughness ~0.9
+        rCtx.fillRect(0, 0, SIZE, SIZE);
+
+        const cData = cCtx.getImageData(0, 0, SIZE, SIZE);
+        const cd = cData.data;
+        const rData = rCtx.getImageData(0, 0, SIZE, SIZE);
+        const rd = rData.data;
+
+        for (let i = 0; i < cd.length; i += 4) {
+            const px = (i / 4) % SIZE;
+            const py = Math.floor((i / 4) / SIZE);
+
+            // 2×2 checkerboard = warp/weft thread
+            const isWarp = ((px >> 1) + (py >> 1)) % 2 === 0;
+            const threadNoise = isWarp ? contrast : -contrast;
+            // Micro-fuzz
+            const fuzz = ((px * 13 + py * 7) % 5 - 2) * 1.2;
+
+            cd[i]     = Math.max(0, Math.min(255, rgb.r + threadNoise + fuzz));
+            cd[i + 1] = Math.max(0, Math.min(255, rgb.g + threadNoise + fuzz));
+            cd[i + 2] = Math.max(0, Math.min(255, rgb.b + threadNoise + fuzz));
+
+            // Roughness: warp threads slightly rougher than weft
+            const rv = isWarp ? 240 : 220;
+            rd[i] = rd[i + 1] = rd[i + 2] = rv + ((px * 7 + py * 3) % 5 - 2);
+        }
+        cCtx.putImageData(cData, 0, 0);
+        rCtx.putImageData(rData, 0, 0);
+
+        return {
+            map: FurnitureFactory3D._finishTexture(cCanvas, 2, 2),
+            roughnessMap: FurnitureFactory3D._finishTexture(rCanvas, 2, 2)
+        };
+    }
+
+    /**
+     * Create a procedural brushed metal texture with roughness map.
+     *
+     * Generates directional horizontal brush marks. The roughness map
+     * creates visible streaks where some rows are shinier than others.
+     *
+     * @param {string} baseColour - Hex colour string
+     * @returns {{ map: THREE.CanvasTexture, roughnessMap: THREE.CanvasTexture }}
+     * @private
+     */
+    static _createMetalTexture(baseColour) {
+        const SIZE = 64;
+        const rgb = FurnitureFactory3D._hexToRgb(baseColour);
+
+        const cCanvas = document.createElement('canvas');
+        cCanvas.width = SIZE;
+        cCanvas.height = SIZE;
+        const cCtx = cCanvas.getContext('2d');
+        cCtx.fillStyle = baseColour;
+        cCtx.fillRect(0, 0, SIZE, SIZE);
+
+        const rCanvas = document.createElement('canvas');
+        rCanvas.width = SIZE;
+        rCanvas.height = SIZE;
+        const rCtx = rCanvas.getContext('2d');
+        rCtx.fillStyle = '#595959'; // base roughness ~0.35
+        rCtx.fillRect(0, 0, SIZE, SIZE);
+
+        const cData = cCtx.getImageData(0, 0, SIZE, SIZE);
+        const cd = cData.data;
+        const rData = rCtx.getImageData(0, 0, SIZE, SIZE);
+        const rd = rData.data;
+
+        for (let i = 0; i < cd.length; i += 4) {
+            const py = Math.floor((i / 4) / SIZE);
+            const px = (i / 4) % SIZE;
+
+            // Per-row brush stroke brightness
+            const brushNoise = ((py * 17 + 5) % 13 - 6) * 3.5;
+            const micro = ((px * 3 + py * 11) % 7 - 3) * 0.8;
+
+            cd[i]     = Math.max(0, Math.min(255, rgb.r + brushNoise + micro));
+            cd[i + 1] = Math.max(0, Math.min(255, rgb.g + brushNoise + micro));
+            cd[i + 2] = Math.max(0, Math.min(255, rgb.b + brushNoise + micro));
+
+            // Roughness streaks — some rows shinier, some duller
+            const rv = Math.max(30, Math.min(120, 89 + brushNoise * 0.5));
+            rd[i] = rd[i + 1] = rd[i + 2] = Math.round(rv);
+        }
+        cCtx.putImageData(cData, 0, 0);
+        rCtx.putImageData(rData, 0, 0);
+
+        return {
+            map: FurnitureFactory3D._finishTexture(cCanvas),
+            roughnessMap: FurnitureFactory3D._finishTexture(rCanvas)
+        };
+    }
+
+    /**
+     * Create a procedural leather stipple texture with roughness map.
+     *
+     * Generates pore dots with scale-aware contrast. The roughness map
+     * makes pores slightly rougher than smooth areas for depth.
+     *
+     * @param {string} baseColour - Hex colour string
+     * @returns {{ map: THREE.CanvasTexture, roughnessMap: THREE.CanvasTexture }}
+     * @private
+     */
+    static _createLeatherTexture(baseColour) {
+        const SIZE = 64;
+        const rgb = FurnitureFactory3D._hexToRgb(baseColour);
+        const lum = FurnitureFactory3D._luminance(rgb);
+        const intensity = lum < 0.35 ? 2.0 : 1.0;
+
+        const cCanvas = document.createElement('canvas');
+        cCanvas.width = SIZE;
+        cCanvas.height = SIZE;
+        const cCtx = cCanvas.getContext('2d');
+        cCtx.fillStyle = baseColour;
+        cCtx.fillRect(0, 0, SIZE, SIZE);
+
+        const rCanvas = document.createElement('canvas');
+        rCanvas.width = SIZE;
+        rCanvas.height = SIZE;
+        const rCtx = rCanvas.getContext('2d');
+        rCtx.fillStyle = '#808080'; // base roughness ~0.5
+        rCtx.fillRect(0, 0, SIZE, SIZE);
+
+        const cData = cCtx.getImageData(0, 0, SIZE, SIZE);
+        const cd = cData.data;
+        const rData = rCtx.getImageData(0, 0, SIZE, SIZE);
+        const rd = rData.data;
+
+        for (let i = 0; i < cd.length; i += 4) {
+            const px = (i / 4) % SIZE;
+            const py = Math.floor((i / 4) / SIZE);
+
+            const hash = (px * 31 + py * 17) % 37;
+            let noise = 0;
+            let roughAdj = 0;
+            if (hash < 7) {
+                // Dark pore
+                noise = (-8 - hash * 1.8) * intensity;
+                roughAdj = 25; // pores are rougher
+            } else if (hash > 31) {
+                // Slight highlight between pores
+                noise = 6 * intensity;
+                roughAdj = -15; // highlights are smoother
+            }
+
+            cd[i]     = Math.max(0, Math.min(255, rgb.r + noise));
+            cd[i + 1] = Math.max(0, Math.min(255, rgb.g + noise));
+            cd[i + 2] = Math.max(0, Math.min(255, rgb.b + noise));
+
+            rd[i] = rd[i + 1] = rd[i + 2] = Math.max(0, Math.min(255, 128 + roughAdj));
+        }
+        cCtx.putImageData(cData, 0, 0);
+        rCtx.putImageData(rData, 0, 0);
+
+        return {
+            map: FurnitureFactory3D._finishTexture(cCanvas),
+            roughnessMap: FurnitureFactory3D._finishTexture(rCanvas)
+        };
     }
 
     /**
@@ -842,12 +1196,12 @@ export default class FurnitureFactory3D {
         const { width, depth, height } = dims;
         const group = new THREE.Group();
 
-        const mainMat = FurnitureFactory3D._createMaterial(colour, 0.65, 0.1);
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
         const darkMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.75), 0.7, 0.1
+            FurnitureFactory3D._darkenColour(colour, 0.75), 'WOOD_MATTE'
         );
         const lightMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._lightenColour(colour, 1.12), 0.65, 0.1
+            FurnitureFactory3D._lightenColour(colour, 1.12), 'WOOD'
         );
 
         const legH = 0.08;
@@ -896,8 +1250,11 @@ export default class FurnitureFactory3D {
         const legGeo = new THREE.CylinderGeometry(0.02, 0.02, legH, 8);
         const inX = width / 2 - 0.06;
         const inZ = depth / 2 - 0.06;
+        const legMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._getMetalColour(colour), 'METAL'
+        );
         [[-inX, -inZ], [inX, -inZ], [-inX, inZ], [inX, inZ]].forEach(([lx, lz]) => {
-            const leg = new THREE.Mesh(legGeo, darkMat);
+            const leg = new THREE.Mesh(legGeo, legMat);
             leg.position.set(lx, legH / 2, lz);
             FurnitureFactory3D._enableShadows(leg);
             group.add(leg);
@@ -928,10 +1285,10 @@ export default class FurnitureFactory3D {
         const group = new THREE.Group();
 
         const frameMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.75), 0.7, 0.1
+            FurnitureFactory3D._darkenColour(colour, 0.75), 'WOOD'
         );
-        const mattressMat = FurnitureFactory3D._createMaterial(colour, 0.85, 0.02);
-        const pillowMat = FurnitureFactory3D._createMaterial('#FFFFFF', 0.9, 0.0);
+        const mattressMat = FurnitureFactory3D._createMaterial(colour, 'FABRIC');
+        const pillowMat = FurnitureFactory3D._createMaterial('#FFFFFF', 'FABRIC');
 
         const frameH = height * 0.3;
         const mattressH = height * 0.35;
@@ -1005,14 +1362,16 @@ export default class FurnitureFactory3D {
         const { width, depth, height } = dims;
         const group = new THREE.Group();
 
-        const mainMat = FurnitureFactory3D._createMaterial(colour, 0.7, 0.1);
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 'WOOD');
         const darkMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.8), 0.7, 0.1
+            FurnitureFactory3D._darkenColour(colour, 0.8), 'WOOD_MATTE'
         );
         const lightMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._lightenColour(colour, 1.08), 0.65, 0.1
+            FurnitureFactory3D._lightenColour(colour, 1.08), 'WOOD'
         );
-        const handleMat = FurnitureFactory3D._createMaterial('#888888', 0.4, 0.6);
+        const handleMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._getMetalColour(colour), 'METAL'
+        );
 
         const plinthH = 0.06;
         const corniceH = 0.05;
@@ -1059,9 +1418,12 @@ export default class FurnitureFactory3D {
         FurnitureFactory3D._enableShadows(plinth);
         group.add(plinth);
 
-        // Top cornice (slight overhang)
+        // Top cornice (slight overhang) — WOOD like body
+        const corniceMat = FurnitureFactory3D._createMaterial(
+            FurnitureFactory3D._darkenColour(colour, 0.85), 'WOOD'
+        );
         const cornice = new THREE.Mesh(
-            new THREE.BoxGeometry(width + 0.04, corniceH, depth + 0.02), darkMat
+            new THREE.BoxGeometry(width + 0.04, corniceH, depth + 0.02), corniceMat
         );
         cornice.position.y = height + corniceH / 2;
         FurnitureFactory3D._enableShadows(cornice);
@@ -1093,9 +1455,9 @@ export default class FurnitureFactory3D {
         const group = new THREE.Group();
 
         const rugH = 0.02;
-        const mainMat = FurnitureFactory3D._createMaterial(colour, 1.0, 0.0);
+        const mainMat = FurnitureFactory3D._createMaterial(colour, 'FABRIC');
         const borderMat = FurnitureFactory3D._createMaterial(
-            FurnitureFactory3D._darkenColour(colour, 0.75), 1.0, 0.0
+            FurnitureFactory3D._darkenColour(colour, 0.75), 'FABRIC'
         );
 
         // Main rug surface
