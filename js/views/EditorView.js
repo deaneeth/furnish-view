@@ -691,6 +691,11 @@ class EditorView {
         // Build / rebuild the scene with the latest design data
         this._sync3DScene();
 
+        // Smooth camera fly-in from top-down to isometric angle
+        if (this.renderer3d) {
+            this.renderer3d.animateCameraEntry();
+        }
+
         // Disable toolbar — can't place furniture in 3D
         this.toolbar?.setDisabled(true);
 

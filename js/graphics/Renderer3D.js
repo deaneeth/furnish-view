@@ -355,6 +355,12 @@ class Renderer3D {
         // Update orbit target to match the slightly-above-floor look
         if (this.controls) {
             this.controls.target.set(0, roomHeight * 0.3, 0);
+
+            // Room-relative zoom constraints
+            const maxDim = Math.max(roomWidth, roomDepth);
+            this.controls.minDistance = Math.max(1, maxDim * 0.3);
+            this.controls.maxDistance = maxDim * 3;
+
             this.controls.update();
         }
     }
@@ -656,28 +662,38 @@ class Renderer3D {
      * Configure OrbitControls for interactive camera manipulation.
      *
      * Enables smooth orbit, zoom, and pan with damping.
-     * Constrains the polar angle to prevent looking from below the floor,
-     * and limits zoom distance to keep the room in view.
+     * Constrains polar angle to prevent disorienting camera angles,
+     * and sets zoom/pan/rotate speeds for a fluid, professional feel.
+     *
+     * Room-relative zoom constraints are applied later in buildRoom()
+     * where the actual room dimensions are known.
      */
     setupControls() {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
-        // Smooth damping for professional feel
+        // Smooth damping — lower = more inertia, glides longer after release
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
+        this.controls.dampingFactor = 0.06;
 
-        // Prevent camera from going below the floor plane
-        this.controls.maxPolarAngle = Math.PI / 2;
+        // Polar angle constraints — prevent going below floor or directly overhead
+        this.controls.minPolarAngle = Math.PI * 0.05; // just below zenith
+        this.controls.maxPolarAngle = Math.PI * 0.48; // just above horizon
 
-        // Zoom distance limits
+        // Zoom speed and generic limits (overridden per-room in buildRoom)
+        this.controls.zoomSpeed = 0.8;
         this.controls.minDistance = 1;
         this.controls.maxDistance = 30;
 
-        // Look at a point slightly above the floor
-        this.controls.target.set(0, 0.5, 0);
+        // Pan — slower, screen-space for intuitive feel
+        this.controls.enablePan = true;
+        this.controls.panSpeed = 0.5;
+        this.controls.screenSpacePanning = true;
 
-        // Smooth zoom
-        this.controls.zoomSpeed = 0.8;
+        // Rotation — slightly slower for deliberate movement
+        this.controls.rotateSpeed = 0.6;
+
+        // Default target — slightly above floor
+        this.controls.target.set(0, 0.5, 0);
 
         this.controls.update();
     }
@@ -823,6 +839,85 @@ class Renderer3D {
         this.camera.updateProjectionMatrix();
 
         this.renderer.setSize(width, height);
+    }
+
+    /**
+     * Animate the camera from a top-down view (matching the 2D perspective)
+     * to the default isometric viewing angle.
+     *
+     * Called on 2D→3D toggle for a smooth fly-in transition.
+     * Uses ease-out cubic for natural deceleration.
+     *
+     * @param {number} [duration=800] - Animation duration in milliseconds
+     */
+    animateCameraEntry(duration = 800) {
+        if (this.isDisposed || !this.camera || !this.controls) return;
+
+        // Prevent concurrent fly-in animations
+        if (this._flyInActive) return;
+        this._flyInActive = true;
+
+        const room = this.currentDesign?.room;
+        const roomW = room?.width || 5;
+        const roomD = room?.depth || 5;
+        const roomH = room?.height || 2.8;
+
+        // Start: top-down (mimicking the 2D bird's-eye view)
+        const startPos = { x: 0, y: roomH * 5, z: 0.01 };
+        const startTarget = { x: 0, y: 0, z: 0 };
+
+        // End: the normal isometric angle (matches buildRoom camera setup)
+        const endPos = {
+            x: roomW * 0.8,
+            y: roomH * 1.5,
+            z: roomD * 1.2
+        };
+        const endTarget = { x: 0, y: roomH * 0.3, z: 0 };
+
+        // Set camera to start position immediately
+        this.camera.position.set(startPos.x, startPos.y, startPos.z);
+        this.controls.target.set(startTarget.x, startTarget.y, startTarget.z);
+        this.controls.update();
+
+        const startTime = performance.now();
+        const self = this;
+
+        function animateStep(currentTime) {
+            if (self.isDisposed) {
+                self._flyInActive = false;
+                return;
+            }
+
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease-out cubic — fast start, smooth deceleration
+            const eased = 1 - Math.pow(1 - progress, 3);
+
+            // Lerp camera position
+            self.camera.position.set(
+                startPos.x + (endPos.x - startPos.x) * eased,
+                startPos.y + (endPos.y - startPos.y) * eased,
+                startPos.z + (endPos.z - startPos.z) * eased
+            );
+
+            // Lerp controls target
+            self.controls.target.set(
+                startTarget.x + (endTarget.x - startTarget.x) * eased,
+                startTarget.y + (endTarget.y - startTarget.y) * eased,
+                startTarget.z + (endTarget.z - startTarget.z) * eased
+            );
+
+            self.controls.update();
+
+            if (progress < 1) {
+                requestAnimationFrame(animateStep);
+            } else {
+                self._flyInActive = false;
+            }
+        }
+
+        requestAnimationFrame(animateStep);
     }
 
     /**
