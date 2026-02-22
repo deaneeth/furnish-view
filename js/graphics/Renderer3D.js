@@ -44,12 +44,6 @@ const SHADOW_MAP_SIZE = 2048;
 const SCENE_BACKGROUND = 0xf0f4f8;
 
 /**
- * Fog density for atmospheric depth — gentle fade for warmth
- * @type {number}
- */
-const FOG_DENSITY = 0.02;
-
-/**
  * Skirting board height in meters
  * @type {number}
  */
@@ -317,8 +311,51 @@ class Renderer3D {
         this.scene.add(this.gridHelper);
         this.roomMeshes.add(this.gridHelper);
 
-        // --- Atmospheric fog for depth perception ---
-        this.scene.fog = new THREE.FogExp2(SCENE_BACKGROUND, FOG_DENSITY);
+        // --- Extended ground plane (spatial context beyond the room) ---
+        const groundSize = Math.max(roomWidth, roomDepth) * 5;
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0xE8E8E8,
+            roughness: 0.95,
+            metalness: 0.0
+        });
+        const groundPlane = new THREE.Mesh(groundGeo, groundMat);
+        groundPlane.rotation.x = -Math.PI / 2;
+        groundPlane.position.y = -0.005;
+        groundPlane.receiveShadow = true;
+        groundPlane.castShadow = false;
+        this.scene.add(groundPlane);
+        this.roomMeshes.add(groundPlane);
+
+        // --- Subtle reference grid on extended ground ---
+        const gridSpan = Math.max(roomWidth, roomDepth) * 4;
+        const gridDiv = Math.round(gridSpan); // ~1 m per division
+        const extGrid = new THREE.GridHelper(gridSpan, gridDiv, 0xCCCCCC, 0xDDDDDD);
+        extGrid.position.y = -0.003;
+        extGrid.material.opacity = 0.3;
+        extGrid.material.transparent = true;
+        this.scene.add(extGrid);
+        this.roomMeshes.add(extGrid);
+
+        // --- Room boundary outline (thin line at floor perimeter) ---
+        const hw = roomWidth / 2;
+        const hd = roomDepth / 2;
+        const boundaryVerts = new Float32Array([
+            -hw, 0.002, -hd,   hw, 0.002, -hd,
+             hw, 0.002, -hd,   hw, 0.002,  hd,
+             hw, 0.002,  hd,  -hw, 0.002,  hd,
+            -hw, 0.002,  hd,  -hw, 0.002, -hd
+        ]);
+        const boundaryGeo = new THREE.BufferGeometry();
+        boundaryGeo.setAttribute('position', new THREE.BufferAttribute(boundaryVerts, 3));
+        const boundaryMat = new THREE.LineBasicMaterial({ color: 0x999999 });
+        const boundaryLine = new THREE.LineSegments(boundaryGeo, boundaryMat);
+        this.scene.add(boundaryLine);
+        this.roomMeshes.add(boundaryLine);
+
+        // --- Linear fog for depth (fades grid edges naturally) ---
+        const maxDimension = Math.max(roomWidth, roomDepth, roomHeight);
+        this.scene.fog = new THREE.Fog(SCENE_BACKGROUND, maxDimension * 3, maxDimension * 5);
 
         // --- Update directional light to 45° angle ---
         this.directionalLight.position.set(
@@ -355,6 +392,12 @@ class Renderer3D {
         // Update orbit target to match the slightly-above-floor look
         if (this.controls) {
             this.controls.target.set(0, roomHeight * 0.3, 0);
+
+            // Room-relative zoom constraints
+            const maxDim = Math.max(roomWidth, roomDepth);
+            this.controls.minDistance = Math.max(1, maxDim * 0.3);
+            this.controls.maxDistance = maxDim * 3;
+
             this.controls.update();
         }
     }
@@ -656,28 +699,38 @@ class Renderer3D {
      * Configure OrbitControls for interactive camera manipulation.
      *
      * Enables smooth orbit, zoom, and pan with damping.
-     * Constrains the polar angle to prevent looking from below the floor,
-     * and limits zoom distance to keep the room in view.
+     * Constrains polar angle to prevent disorienting camera angles,
+     * and sets zoom/pan/rotate speeds for a fluid, professional feel.
+     *
+     * Room-relative zoom constraints are applied later in buildRoom()
+     * where the actual room dimensions are known.
      */
     setupControls() {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
-        // Smooth damping for professional feel
+        // Smooth damping — lower = more inertia, glides longer after release
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
+        this.controls.dampingFactor = 0.06;
 
-        // Prevent camera from going below the floor plane
-        this.controls.maxPolarAngle = Math.PI / 2;
+        // Polar angle constraints — prevent going below floor or directly overhead
+        this.controls.minPolarAngle = Math.PI * 0.05; // just below zenith
+        this.controls.maxPolarAngle = Math.PI * 0.48; // just above horizon
 
-        // Zoom distance limits
+        // Zoom speed and generic limits (overridden per-room in buildRoom)
+        this.controls.zoomSpeed = 0.8;
         this.controls.minDistance = 1;
         this.controls.maxDistance = 30;
 
-        // Look at a point slightly above the floor
-        this.controls.target.set(0, 0.5, 0);
+        // Pan — slower, screen-space for intuitive feel
+        this.controls.enablePan = true;
+        this.controls.panSpeed = 0.5;
+        this.controls.screenSpacePanning = true;
 
-        // Smooth zoom
-        this.controls.zoomSpeed = 0.8;
+        // Rotation — slightly slower for deliberate movement
+        this.controls.rotateSpeed = 0.6;
+
+        // Default target — slightly above floor
+        this.controls.target.set(0, 0.5, 0);
 
         this.controls.update();
     }
@@ -724,7 +777,10 @@ class Renderer3D {
                     child.geometry.dispose();
                 }
                 if (child.material) {
-                    if (child.material.map) child.material.map.dispose();
+                    // Skip map disposal for shared textures (e.g. contact shadow)
+                    if (child.material.map && !child.material._sharedMap) {
+                        child.material.map.dispose();
+                    }
                     if (child.material.roughnessMap) child.material.roughnessMap.dispose();
                     child.material.dispose();
                 }
@@ -820,6 +876,85 @@ class Renderer3D {
         this.camera.updateProjectionMatrix();
 
         this.renderer.setSize(width, height);
+    }
+
+    /**
+     * Animate the camera from a top-down view (matching the 2D perspective)
+     * to the default isometric viewing angle.
+     *
+     * Called on 2D→3D toggle for a smooth fly-in transition.
+     * Uses ease-out cubic for natural deceleration.
+     *
+     * @param {number} [duration=800] - Animation duration in milliseconds
+     */
+    animateCameraEntry(duration = 800) {
+        if (this.isDisposed || !this.camera || !this.controls) return;
+
+        // Prevent concurrent fly-in animations
+        if (this._flyInActive) return;
+        this._flyInActive = true;
+
+        const room = this.currentDesign?.room;
+        const roomW = room?.width || 5;
+        const roomD = room?.depth || 5;
+        const roomH = room?.height || 2.8;
+
+        // Start: top-down (mimicking the 2D bird's-eye view)
+        const startPos = { x: 0, y: roomH * 5, z: 0.01 };
+        const startTarget = { x: 0, y: 0, z: 0 };
+
+        // End: the normal isometric angle (matches buildRoom camera setup)
+        const endPos = {
+            x: roomW * 0.8,
+            y: roomH * 1.5,
+            z: roomD * 1.2
+        };
+        const endTarget = { x: 0, y: roomH * 0.3, z: 0 };
+
+        // Set camera to start position immediately
+        this.camera.position.set(startPos.x, startPos.y, startPos.z);
+        this.controls.target.set(startTarget.x, startTarget.y, startTarget.z);
+        this.controls.update();
+
+        const startTime = performance.now();
+        const self = this;
+
+        function animateStep(currentTime) {
+            if (self.isDisposed) {
+                self._flyInActive = false;
+                return;
+            }
+
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease-out cubic — fast start, smooth deceleration
+            const eased = 1 - Math.pow(1 - progress, 3);
+
+            // Lerp camera position
+            self.camera.position.set(
+                startPos.x + (endPos.x - startPos.x) * eased,
+                startPos.y + (endPos.y - startPos.y) * eased,
+                startPos.z + (endPos.z - startPos.z) * eased
+            );
+
+            // Lerp controls target
+            self.controls.target.set(
+                startTarget.x + (endTarget.x - startTarget.x) * eased,
+                startTarget.y + (endTarget.y - startTarget.y) * eased,
+                startTarget.z + (endTarget.z - startTarget.z) * eased
+            );
+
+            self.controls.update();
+
+            if (progress < 1) {
+                requestAnimationFrame(animateStep);
+            } else {
+                self._flyInActive = false;
+            }
+        }
+
+        requestAnimationFrame(animateStep);
     }
 
     /**
@@ -1049,6 +1184,12 @@ class Renderer3D {
         // Dispose room and furniture meshes
         this._clearRoomMeshes();
         this._clearFurnitureMeshes();
+
+        // Dispose shared contact shadow texture (cached across furniture pieces)
+        if (FurnitureFactory3D._contactShadowTexture) {
+            FurnitureFactory3D._contactShadowTexture.dispose();
+            FurnitureFactory3D._contactShadowTexture = null;
+        }
 
         // Dispose lights
         if (this.ambientLight) {
