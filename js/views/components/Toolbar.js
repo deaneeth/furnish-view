@@ -22,7 +22,11 @@ const FURNITURE_ICONS = {
     'armchair': '💺',
     'coffee-table': '☕',
     'bookshelf': '📚',
-    'desk': '🖥️'
+    'desk': '🖥️',
+    'tv-stand': '📺',
+    'bed': '🛏️',
+    'wardrobe': '🚪',
+    'rug': '🟫'
 };
 
 /**
@@ -70,6 +74,7 @@ class Toolbar {
                     <div class="toolbar-furniture-grid">
                         ${this._renderFurnitureButtons(furnitureCatalogue)}
                     </div>
+                    <div class="toolbar-item-count" id="toolbar-item-count"></div>
                 </div>
                 
                 <hr class="toolbar-divider" />
@@ -109,6 +114,8 @@ class Toolbar {
                         </button>
                     </div>
                 </div>
+                
+                ${this._renderShortcutsSection()}
             </div>
         `;
         
@@ -136,7 +143,7 @@ class Toolbar {
                     type="button"
                     class="toolbar-furniture-btn ${isSelected ? 'active' : ''}"
                     data-furniture-type="${item.type}"
-                    title="${escapedLabel} (${item.defaultWidth}m × ${item.defaultDepth}m)"
+                    title="${escapedLabel} — Click, then click on canvas to place"
                     aria-label="Place ${escapedLabel}"
                     aria-pressed="${isSelected}"
                 >
@@ -171,6 +178,17 @@ class Toolbar {
                 this._handleAction(action);
             });
         });
+        
+        // Shortcuts toggle
+        const shortcutsToggle = this.container.querySelector('#shortcuts-toggle');
+        const shortcutsBody = this.container.querySelector('#shortcuts-body');
+        if (shortcutsToggle && shortcutsBody) {
+            shortcutsToggle.addEventListener('click', () => {
+                const isExpanded = shortcutsToggle.getAttribute('aria-expanded') === 'true';
+                shortcutsToggle.setAttribute('aria-expanded', String(!isExpanded));
+                shortcutsBody.classList.toggle('expanded', !isExpanded);
+            });
+        }
     }
     
     /**
@@ -292,6 +310,63 @@ class Toolbar {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    /**
+     * Render collapsible keyboard shortcuts section
+     * Nielsen #10: Help and documentation — available but not intrusive
+     * @returns {string} HTML string for shortcuts section
+     * @private
+     */
+    _renderShortcutsSection() {
+        return `
+            <div class="toolbar-shortcuts">
+                <button 
+                    type="button" 
+                    class="toolbar-shortcuts-toggle"
+                    id="shortcuts-toggle"
+                    aria-expanded="false"
+                    aria-controls="shortcuts-body"
+                >
+                    <span>⌨️ Shortcuts</span>
+                    <span class="toolbar-shortcuts-toggle-icon">▼</span>
+                </button>
+                <div class="toolbar-shortcuts-body" id="shortcuts-body" role="region">
+                    <div class="toolbar-shortcut-item">
+                        <kbd class="toolbar-shortcut-key">Del</kbd>
+                        <span>Remove selected item</span>
+                    </div>
+                    <div class="toolbar-shortcut-item">
+                        <kbd class="toolbar-shortcut-key">Ctrl+Z</kbd>
+                        <span>Undo last action</span>
+                    </div>
+                    <div class="toolbar-shortcut-item">
+                        <kbd class="toolbar-shortcut-key">Esc</kbd>
+                        <span>Deselect / cancel</span>
+                    </div>
+                    <div class="toolbar-shortcut-item">
+                        <kbd class="toolbar-shortcut-key">Shift+Drag</kbd>
+                        <span>Snap rotation to 15°</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    /**
+     * Update the item count badge in the toolbar
+     * @param {number} count - Number of furniture items placed
+     */
+    updateItemCount(count) {
+        if (!this.container) return;
+        const badge = this.container.querySelector('#toolbar-item-count');
+        if (!badge) return;
+        
+        if (count > 0) {
+            badge.textContent = `${count} item${count !== 1 ? 's' : ''} placed`;
+        } else {
+            badge.textContent = '';
+        }
     }
 }
 

@@ -44,64 +44,77 @@ class LoginView {
         
         this.container = container;
         
-        // Create login HTML structure
+        // Create login HTML structure with commercial minimal UI
         container.innerHTML = `
             <div class="login-container">
                 <div class="login-card">
                     <header class="login-header">
-                        <h1 class="login-logo">FurnishView</h1>
-                        <p class="login-subtitle">Room Designer Application</p>
+                        <h1 class="login-logo">Furnish<span class="login-logo-accent">View</span></h1>
+                        <p class="login-subtitle">Room Design Visualizer</p>
                     </header>
-                    
+
                     <form id="login-form" class="login-form" novalidate>
-                        <div class="form-group">
+                        <div class="form-group login-input-group">
                             <label class="form-label" for="login-username">Username</label>
-                            <input 
-                                type="text" 
-                                id="login-username" 
-                                name="username"
-                                class="form-input" 
-                                placeholder="Enter your username"
-                                autocomplete="username"
-                                autocapitalize="none"
-                                spellcheck="false"
-                                required
-                            >
+                            <div class="login-input-wrapper">
+                                <span class="login-input-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    id="login-username"
+                                    name="username"
+                                    class="form-input login-input"
+                                    placeholder="Username"
+                                    autocomplete="username"
+                                    autocapitalize="none"
+                                    spellcheck="false"
+                                    required
+                                >
+                            </div>
                         </div>
-                        
-                        <div class="form-group">
+
+                        <div class="form-group login-input-group">
                             <label class="form-label" for="login-password">Password</label>
-                            <input 
-                                type="password" 
-                                id="login-password"
-                                name="password" 
-                                class="form-input" 
-                                placeholder="Enter your password"
-                                autocomplete="current-password"
-                                required
-                            >
+                            <div class="login-input-wrapper">
+                                <span class="login-input-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                </span>
+                                <input
+                                    type="password"
+                                    id="login-password"
+                                    name="password"
+                                    class="form-input login-input"
+                                    placeholder="Password"
+                                    autocomplete="current-password"
+                                    required
+                                >
+                            </div>
                         </div>
-                        
-                        <div id="login-error" class="login-error" role="alert" aria-live="polite"></div>
-                        
-                        <button 
-                            type="submit" 
-                            id="login-submit" 
-                            class="btn btn-primary btn-lg login-submit"
+
+                        <button
+                            type="submit"
+                            id="login-submit"
+                            class="login-submit"
                             disabled
                         >
                             <span class="login-submit-text">Sign In</span>
                             <span class="login-submit-loading" aria-hidden="true"></span>
                         </button>
                     </form>
-                    
+
+                    <div id="login-error" class="login-error" role="alert" aria-live="polite"></div>
+
                     <footer class="login-footer">
-                        <p class="login-hint">
-                            <span class="text-muted">Test credentials:</span><br>
-                            designer1 / password123
-                        </p>
+                        <div class="login-footer-links">
+                            <span class="login-footer-link">Forgot Password?</span><br>
+                            Don't have an account? <span class="login-footer-link login-footer-link--bold">Sign Up</span>
+                        </div>
                     </footer>
                 </div>
+
+                <p class="login-academic-footer">PUSL3122 — HCI &amp; Computer Graphics</p>
+                <span class="login-sparkle" aria-hidden="true">&#10022;</span>
             </div>
         `;
         
@@ -172,8 +185,13 @@ class LoginView {
     showError(message) {
         if (!this.errorMessage) return;
         
-        this.errorMessage.textContent = message;
+        this.errorMessage.textContent = `⚠️ ${message}`;
         this.errorMessage.classList.add('visible');
+        
+        // Trigger shake animation (re-triggerable by removing then re-adding)
+        this.errorMessage.classList.remove('shake');
+        void this.errorMessage.offsetWidth; // Force reflow to restart animation
+        this.errorMessage.classList.add('shake');
         
         // Add error styling to inputs
         this.usernameInput?.classList.add('error');

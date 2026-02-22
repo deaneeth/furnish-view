@@ -1,13 +1,14 @@
 /**
  * FurnishView — Dashboard View
  * 
- * Renders the design portfolio/dashboard showing saved designs.
- * Provides actions for creating, opening, and deleting designs.
+ * Renders the design portfolio/dashboard showing saved designs with
+ * canvas-generated thumbnail previews for each design card.
  * 
  * Implements Nielsen Heuristics:
- * - #1 Visibility of system status (design count, empty state)
+ * - #1 Visibility of system status (design count, thumbnails, empty state)
  * - #5 Error prevention (delete confirmation via Modal)
  * - #7 Flexibility (multiple ways to access designs)
+ * - #8 Aesthetic and minimalist design (clean card layout)
  * 
  * @file js/views/DashboardView.js
  * @module views/DashboardView
@@ -15,6 +16,21 @@
 
 import { Modal } from './components/Modal.js';
 import { Toast } from './components/Toast.js';
+
+/** Thumbnail canvas dimensions in pixels */
+const THUMB_WIDTH = 400;
+const THUMB_HEIGHT = 300;
+
+/** Thumbnail padding ratio (fraction of canvas reserved for margin) */
+const THUMB_PADDING = 0.12;
+
+/** Default colours for thumbnail rendering fallbacks */
+const THUMB_DEFAULTS = {
+    FLOOR: '#F5F0EB',
+    WALL: '#E8E0D4',
+    FURNITURE: '#94A3B8',
+    GRID: '#EEEEEE'
+};
 
 /**
  * Escape HTML to prevent XSS
@@ -30,7 +46,7 @@ function escapeHtml(text) {
 }
 
 /**
- * Format date for display
+ * Format date for display with relative time for recent dates
  * @param {string} isoDate - ISO date string
  * @returns {string} Formatted date string
  * @private
@@ -46,7 +62,6 @@ function formatDate(isoDate) {
         const diffMs = now.getTime() - date.getTime();
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         
-        // Relative time for recent dates
         if (diffDays === 0) {
             return 'Today';
         } else if (diffDays === 1) {
@@ -55,7 +70,6 @@ function formatDate(isoDate) {
             return `${diffDays} days ago`;
         }
         
-        // Formatted date for older dates
         return date.toLocaleDateString('en-GB', {
             day: 'numeric',
             month: 'short',
@@ -69,7 +83,7 @@ function formatDate(isoDate) {
 /**
  * Format room dimensions for display
  * @param {Object} room - Room object
- * @returns {string} Formatted dimensions
+ * @returns {string} Formatted dimensions string
  * @private
  */
 function formatRoomDimensions(room) {
@@ -79,7 +93,6 @@ function formatRoomDimensions(room) {
     const depth = room.depth || 0;
     const shape = room.shape || 'rectangular';
     
-    // Format shape name nicely
     const shapeName = shape.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     
     return `${width}m × ${depth}m ${shapeName}`;
@@ -87,7 +100,7 @@ function formatRoomDimensions(room) {
 
 /**
  * DashboardView class
- * Manages the design portfolio grid and actions
+ * Manages the design portfolio grid with canvas-generated thumbnails
  */
 class DashboardView {
     /**
@@ -131,17 +144,23 @@ class DashboardView {
         
         const hasDesigns = this.designs.length > 0;
         const canCompare = this.designs.length >= 2;
+        const designCountText = this.designs.length === 1
+            ? '1 design'
+            : `${this.designs.length} designs`;
         
         container.innerHTML = `
             <div class="dashboard">
                 <!-- Header Bar -->
                 <header class="dashboard-header">
                     <div class="dashboard-brand">
-                        <h1 class="dashboard-logo">FurnishView</h1>
+                        <h1 class="dashboard-logo">
+                            <span class="dashboard-logo-icon" aria-hidden="true">🏠</span>
+                            FurnishView
+                        </h1>
                     </div>
                     <div class="dashboard-user">
-                        <span class="dashboard-username">Welcome, <strong>${this.username}</strong></span>
-                        <button type="button" id="logout-btn" class="btn btn-outline btn-sm">Logout</button>
+                        <span class="dashboard-username">Logged in as <strong>${this.username}</strong></span>
+                        <button type="button" id="logout-btn" class="dashboard-signout" aria-label="Sign out">Sign out</button>
                     </div>
                 </header>
                 
@@ -150,12 +169,13 @@ class DashboardView {
                     <!-- Action Bar -->
                     <div class="dashboard-actions">
                         <h2 class="dashboard-title">My Designs</h2>
-                        <div class="dashboard-buttons">
+                        <div class="dashboard-action-row">
+                            ${hasDesigns ? `<span class="dashboard-design-count">${designCountText}</span>` : ''}
                             <button type="button" id="compare-btn" class="btn btn-secondary" ${canCompare ? '' : 'disabled'}>
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                     <path d="M2 4h5M2 8h5M2 12h5M9 4h5M9 8h5M9 12h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                                 </svg>
-                                Compare Designs
+                                Compare
                             </button>
                             <button type="button" id="new-design-btn" class="btn btn-primary">
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -167,13 +187,17 @@ class DashboardView {
                     </div>
                     
                     <!-- Designs Grid or Empty State -->
-                    ${hasDesigns ? this.renderDesignsGrid() : this.renderEmptyState()}
+                    ${hasDesigns ? this._renderDesignsGrid() : this._renderEmptyState()}
                 </main>
             </div>
         `;
         
-        // Attach event listeners
-        this.attachEventListeners();
+        this._attachEventListeners();
+        
+        // Generate thumbnails after DOM is ready
+        if (hasDesigns) {
+            requestAnimationFrame(() => this._generateThumbnails());
+        }
     }
     
     /**
@@ -181,8 +205,8 @@ class DashboardView {
      * @returns {string} HTML string for designs grid
      * @private
      */
-    renderDesignsGrid() {
-        const designCards = this.designs.map(design => this.renderDesignCard(design)).join('');
+    _renderDesignsGrid() {
+        const designCards = this.designs.map(d => this._renderDesignCard(d)).join('');
         
         return `
             <div class="designs-grid" role="list" aria-label="Saved designs">
@@ -192,32 +216,34 @@ class DashboardView {
     }
     
     /**
-     * Render a single design card
+     * Render a single design card with placeholder for thumbnail
      * @param {Object} design - Design object
      * @returns {string} HTML string for design card
      * @private
      */
-    renderDesignCard(design) {
+    _renderDesignCard(design) {
         const id = escapeHtml(design.id || '');
         const name = escapeHtml(design.name || 'Untitled Design');
         const roomDimensions = formatRoomDimensions(design.room);
         const createdDate = formatDate(design.createdAt);
         const furnitureCount = Array.isArray(design.furniture) ? design.furniture.length : 0;
+        const itemsLabel = furnitureCount === 1 ? '1 item' : `${furnitureCount} items`;
         
         return `
             <article class="design-card" role="listitem" data-design-id="${id}">
-                <div class="design-card-preview">
-                    <svg class="design-card-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-                        <rect x="8" y="12" width="32" height="24" rx="2" stroke="currentColor" stroke-width="2"/>
-                        <path d="M14 30h8M26 30h8M14 24h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
+                <div class="design-card-preview" data-thumb-id="${id}">
+                    <div class="design-card-placeholder">
+                        <span class="design-card-placeholder-icon" aria-hidden="true">📐</span>
+                        <span>${escapeHtml(roomDimensions)}</span>
+                    </div>
                 </div>
                 <div class="design-card-content">
-                    <h3 class="design-card-name">${name}</h3>
+                    <h3 class="design-card-name" title="${name}">${name}</h3>
                     <p class="design-card-dimensions">${roomDimensions}</p>
                     <div class="design-card-meta">
                         <span class="design-card-date">${createdDate}</span>
-                        <span class="design-card-items">${furnitureCount} items</span>
+                        <span class="design-card-meta-divider" aria-hidden="true"></span>
+                        <span class="design-card-items">${itemsLabel}</span>
                     </div>
                 </div>
                 <div class="design-card-actions">
@@ -235,25 +261,28 @@ class DashboardView {
     }
     
     /**
-     * Render empty state
+     * Render empty state with welcoming message
      * @returns {string} HTML string for empty state
      * @private
      */
-    renderEmptyState() {
+    _renderEmptyState() {
         return `
             <div class="dashboard-empty">
                 <div class="empty-state">
                     <div class="empty-icon">
-                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-                            <rect x="12" y="16" width="40" height="32" rx="4" stroke="currentColor" stroke-width="2"/>
-                            <path d="M20 36h10M34 36h10M20 28h24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            <path d="M32 20v6M29 23h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                            <path d="M24 6L42 18V38a2 2 0 01-2 2H8a2 2 0 01-2-2V18L24 6z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+                            <rect x="18" y="24" width="12" height="16" rx="1" stroke="currentColor" stroke-width="2"/>
+                            <path d="M14 18h6M28 18h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                         </svg>
                     </div>
-                    <h3 class="empty-title">No Designs Yet</h3>
-                    <p class="empty-description">Create your first room design to get started.</p>
+                    <h3 class="empty-title">Start your first design</h3>
+                    <p class="empty-description">Create room layouts and see them come to life in 3D</p>
                     <button type="button" id="empty-new-design-btn" class="btn btn-primary">
-                        Create First Design
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        Create New Design
                     </button>
                 </div>
             </div>
@@ -261,10 +290,136 @@ class DashboardView {
     }
     
     /**
-     * Attach event listeners
+     * Generate thumbnail previews for all design cards using offscreen canvas.
+     * Draws a simplified room outline with furniture rectangles.
      * @private
      */
-    attachEventListeners() {
+    _generateThumbnails() {
+        if (!this.container) return;
+        
+        for (const design of this.designs) {
+            if (!design.id) continue;
+            
+            const previewEl = this.container.querySelector(`[data-thumb-id="${design.id}"]`);
+            if (!previewEl) continue;
+            
+            try {
+                const dataUrl = this._generateThumbnail(design);
+                if (dataUrl) {
+                    const img = document.createElement('img');
+                    img.src = dataUrl;
+                    img.alt = escapeHtml(design.name || 'Design preview');
+                    img.className = 'design-card-thumbnail';
+                    img.loading = 'lazy';
+                    
+                    // Replace placeholder with thumbnail
+                    previewEl.innerHTML = '';
+                    previewEl.appendChild(img);
+                }
+            } catch {
+                // Keep the fallback placeholder on error — already rendered
+            }
+        }
+    }
+    
+    /**
+     * Generate a single thumbnail for a design using an offscreen canvas.
+     *
+     * ALGORITHM:
+     *  1. Create offscreen canvas (THUMB_WIDTH × THUMB_HEIGHT)
+     *  2. Compute scale to fit room inside canvas with padding
+     *  3. Fill background with floor colour
+     *  4. Stroke room outline with wall colour
+     *  5. Draw each furniture item as a filled rectangle
+     *  6. Return canvas.toDataURL()
+     *
+     * @param {Object} design - Design object with room and furniture data
+     * @returns {string|null} Data URL of the thumbnail, or null on failure
+     * @private
+     */
+    _generateThumbnail(design) {
+        const room = design.room;
+        if (!room || !room.width || !room.depth) return null;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = THUMB_WIDTH;
+        canvas.height = THUMB_HEIGHT;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        
+        const roomW = room.width;
+        const roomD = room.depth;
+        
+        // Calculate scale to fit room inside thumbnail with padding
+        const padX = THUMB_WIDTH * THUMB_PADDING;
+        const padY = THUMB_HEIGHT * THUMB_PADDING;
+        const availW = THUMB_WIDTH - 2 * padX;
+        const availH = THUMB_HEIGHT - 2 * padY;
+        const scale = Math.min(availW / roomW, availH / roomD);
+        
+        // Centre the room
+        const drawW = roomW * scale;
+        const drawH = roomD * scale;
+        const offsetX = (THUMB_WIDTH - drawW) / 2;
+        const offsetY = (THUMB_HEIGHT - drawH) / 2;
+        
+        // 1. Background
+        ctx.fillStyle = THUMB_DEFAULTS.GRID;
+        ctx.fillRect(0, 0, THUMB_WIDTH, THUMB_HEIGHT);
+        
+        // 2. Floor
+        ctx.fillStyle = room.floorColour || THUMB_DEFAULTS.FLOOR;
+        ctx.fillRect(offsetX, offsetY, drawW, drawH);
+        
+        // 3. Wall outline
+        ctx.strokeStyle = room.wallColour || THUMB_DEFAULTS.WALL;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(offsetX, offsetY, drawW, drawH);
+        
+        // 4. Furniture items
+        const furniture = Array.isArray(design.furniture) ? design.furniture : [];
+        for (const item of furniture) {
+            if (!item) continue;
+            
+            const fx = item.x || 0;
+            const fy = item.y || 0;
+            const fw = item.width || 0.6;
+            const fd = item.depth || 0.6;
+            
+            const cx = offsetX + fx * scale;
+            const cy = offsetY + fy * scale;
+            const cw = fw * scale;
+            const cd = fd * scale;
+            
+            // Save context for rotation
+            ctx.save();
+            
+            if (item.rotation && item.rotation !== 0) {
+                const centerX = cx + cw / 2;
+                const centerY = cy + cd / 2;
+                ctx.translate(centerX, centerY);
+                ctx.rotate((item.rotation * Math.PI) / 180);
+                ctx.translate(-centerX, -centerY);
+            }
+            
+            // Filled rectangle with subtle border
+            ctx.fillStyle = item.colour || THUMB_DEFAULTS.FURNITURE;
+            ctx.fillRect(cx, cy, cw, cd);
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx, cy, cw, cd);
+            
+            ctx.restore();
+        }
+        
+        return canvas.toDataURL('image/png');
+    }
+    
+    /**
+     * Attach event listeners using event delegation
+     * @private
+     */
+    _attachEventListeners() {
         if (!this.container) return;
         
         // Logout button
@@ -288,7 +443,7 @@ class DashboardView {
             }
         });
         
-        // Design card actions (using event delegation)
+        // Design card actions (event delegation)
         const designsGrid = this.container.querySelector('.designs-grid');
         if (designsGrid) {
             designsGrid.addEventListener('click', (event) => {
@@ -307,27 +462,26 @@ class DashboardView {
                 if (deleteBtn) {
                     const designId = deleteBtn.dataset.designId;
                     const designName = deleteBtn.dataset.designName || 'this design';
-                    if (designId) this.handleDeleteDesign(designId, designName);
+                    if (designId) this._handleDeleteDesign(designId, designName);
                 }
             });
         }
     }
     
     /**
-     * Handle delete design with confirmation
+     * Handle delete design with confirmation modal
      * @param {string} designId - ID of design to delete
      * @param {string} designName - Name of design for confirmation message
      * @private
      */
-    handleDeleteDesign(designId, designName) {
+    _handleDeleteDesign(designId, designName) {
         Modal.confirmDelete(designName, () => {
-            // Call the delete callback
             this.onDeleteDesign(designId);
         });
     }
     
     /**
-     * Refresh the design list
+     * Refresh the design list with new data
      * @param {Array} designs - Updated designs array
      */
     refreshDesigns(designs) {
@@ -336,7 +490,7 @@ class DashboardView {
     }
     
     /**
-     * Clean up the view
+     * Clean up the view and release references
      */
     destroy() {
         this.container = null;

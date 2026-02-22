@@ -20,6 +20,24 @@ import { getFurnitureByType } from '../data/furnitureCatalogue.js';
 const MAX_UNDO_STACK = 20;
 
 /**
+ * Hit-detection radius for the rotation handle (px)
+ * @type {number}
+ */
+const ROTATION_HIT_RADIUS = 14;
+
+/**
+ * Snap increment (degrees) when Shift is held during rotation
+ * @type {number}
+ */
+const ROTATION_SNAP_STEP = 15;
+
+/**
+ * Default snap-to-grid increment in meters
+ * @type {number}
+ */
+const SNAP_INCREMENT = 0.25;
+
+/**
  * CanvasController
  * Manages canvas interactions and furniture manipulation
  */
@@ -60,10 +78,21 @@ class CanvasController {
         this.dragStartPosition = { x: 0, y: 0 };
         this.positionChanged = false;
         
+        // Rotation interaction state (Task 4B.2)
+        this.isRotating = false;
+        this.rotationStartAngle = 0;
+        this.rotationStartRotation = 0;
+        this.rotationChanged = false;
+        this.shiftHeld = false;
+        
         // Placing mode state
         this.placingType = null;
         this.placingDef = null; // Furniture definition for placing preview
         
+        // Snap-to-grid state
+        this.snapToGrid = true;
+        this.snapIncrement = SNAP_INCREMENT;
+
         // Undo system
         this.undoStack = [];
         
@@ -156,6 +185,17 @@ class CanvasController {
             return;
         }
         
+        // Check rotation handle BEFORE drag (Task 4B.2)
+        if (this.selectedItem) {
+            const handlePos = this.renderer.getRotationHandlePosition(this.selectedItem);
+            const dx = pos.x - handlePos.x;
+            const dy = pos.y - handlePos.y;
+            if (Math.sqrt(dx * dx + dy * dy) <= ROTATION_HIT_RADIUS) {
+                this._startRotation(this.selectedItem, pos);
+                return;
+            }
+        }
+        
         // Otherwise, check for hit detection (selection/drag)
         const hitItem = this.renderer.getItemAtPosition(pos.x, pos.y);
         
@@ -177,13 +217,28 @@ class CanvasController {
     _handleMouseMove(event) {
         const pos = this._getCanvasPosition(event);
         
+        // Track Shift key for snap-rotation
+        this.shiftHeld = event.shiftKey;
+        
         // Handle placing mode - show ghost preview
         if (this.placingType && this.placingDef) {
             this._updateGhostPreview(pos);
             return;
         }
         
-        if (!this.isDragging) return;
+        // Cursor: rotation handle hover (Task 4B.2)
+        if (this.selectedItem && !this.isDragging && !this.isRotating && this.canvas) {
+            const handlePos = this.renderer.getRotationHandlePosition(this.selectedItem);
+            const dx = pos.x - handlePos.x;
+            const dy = pos.y - handlePos.y;
+            if (Math.sqrt(dx * dx + dy * dy) <= ROTATION_HIT_RADIUS) {
+                this.canvas.classList.add('rotating');
+            } else {
+                this.canvas.classList.remove('rotating');
+            }
+        }
+        
+        if (!this.isDragging && !this.isRotating) return;
         
         event.preventDefault();
         this._handlePointerMove(pos);
@@ -218,7 +273,36 @@ class CanvasController {
      * @private
      */
     _handlePointerMove(pos) {
-        if (!this.isDragging || !this.selectedItem || !this.renderer) return;
+        if (!this.selectedItem || !this.renderer) return;
+        
+        // --- Rotation mode (Task 4B.2) ---
+        if (this.isRotating) {
+            const canvasPos = this.renderer.worldToCanvas(this.selectedItem.x, this.selectedItem.y);
+            const scaledW = this.renderer.scaleSize(this.selectedItem.width);
+            const scaledD = this.renderer.scaleSize(this.selectedItem.depth);
+            const centerX = canvasPos.x + scaledW / 2;
+            const centerY = canvasPos.y + scaledD / 2;
+            
+            const currentAngle = Math.atan2(pos.y - centerY, pos.x - centerX);
+            let delta = (currentAngle - this.rotationStartAngle) * (180 / Math.PI);
+            let newRotation = this.rotationStartRotation + delta;
+            
+            // Shift-snap to 15-degree increments
+            if (this.shiftHeld) {
+                newRotation = Math.round(newRotation / ROTATION_SNAP_STEP) * ROTATION_SNAP_STEP;
+            }
+            
+            this.selectedItem.setRotation(newRotation);
+            this.rotationChanged = true;
+            this._render();
+            
+            // Notify so sidebar can sync
+            this.onFurnitureSelect(this.selectedItem);
+            return;
+        }
+        
+        // --- Drag mode ---
+        if (!this.isDragging) return;
         
         // Convert canvas position to world position (accounting for drag offset)
         const worldPos = this.renderer.canvasToWorld(
@@ -234,8 +318,13 @@ class CanvasController {
             depth: this.selectedItem.depth
         });
         
+        // Snap to grid if enabled
+        const finalPos = this.snapToGrid
+            ? this._snapPosition(clampedPos.x, clampedPos.y)
+            : clampedPos;
+        
         // Update item position
-        this.selectedItem.setPosition(clampedPos.x, clampedPos.y);
+        this.selectedItem.setPosition(finalPos.x, finalPos.y);
         this.positionChanged = true;
         
         // Re-render for real-time visual feedback
@@ -265,6 +354,19 @@ class CanvasController {
      * @private
      */
     _handlePointerUp() {
+        // Finalize rotation (Task 4B.2)
+        if (this.isRotating && this.rotationChanged) {
+            this.onFurnitureUpdate();
+            this.onDesignChange();
+        }
+        this.isRotating = false;
+        this.rotationChanged = false;
+        
+        // Remove rotating cursor
+        if (this.canvas) {
+            this.canvas.classList.remove('rotating');
+        }
+        
         if (this.isDragging && this.positionChanged) {
             // Finalize position change
             this.onFurnitureUpdate();
@@ -294,13 +396,22 @@ class CanvasController {
         this._saveState();
         
         // Convert canvas position to world position
-        const worldPos = this.renderer.canvasToWorld(pos.x, pos.y);
+        const rawPos = this.renderer.canvasToWorld(pos.x, pos.y);
+        
+        // Snap placement position to grid if enabled
+        const worldPos = this.snapToGrid
+            ? this._snapPosition(
+                rawPos.x - furnitureDef.defaultWidth / 2,
+                rawPos.y - furnitureDef.defaultDepth / 2
+              )
+            : { x: rawPos.x - furnitureDef.defaultWidth / 2,
+                y: rawPos.y - furnitureDef.defaultDepth / 2 };
         
         // Create new furniture item with default dimensions
         const newItem = new FurnitureItem({
             type: furnitureDef.type,
-            x: worldPos.x - furnitureDef.defaultWidth / 2, // Center on click
-            y: worldPos.y - furnitureDef.defaultDepth / 2,
+            x: worldPos.x,
+            y: worldPos.y,
             width: furnitureDef.defaultWidth,
             depth: furnitureDef.defaultDepth,
             height: furnitureDef.defaultHeight,
@@ -349,6 +460,29 @@ class CanvasController {
         this.dragStartPosition = { x: item.x, y: item.y };
         this.isDragging = true;
         this.positionChanged = false;
+    }
+    
+    /**
+     * Start rotating the selected item (Task 4B.2)
+     * @param {FurnitureItem} item - The item being rotated
+     * @param {Object} pos - Canvas position where rotation started
+     * @private
+     */
+    _startRotation(item, pos) {
+        // Save state for undo before potential modification
+        this._saveState();
+        
+        // Compute centre of item in canvas space
+        const canvasPos = this.renderer.worldToCanvas(item.x, item.y);
+        const scaledW = this.renderer.scaleSize(item.width);
+        const scaledD = this.renderer.scaleSize(item.depth);
+        const centerX = canvasPos.x + scaledW / 2;
+        const centerY = canvasPos.y + scaledD / 2;
+        
+        this.rotationStartAngle = Math.atan2(pos.y - centerY, pos.x - centerX);
+        this.rotationStartRotation = item.rotation || 0;
+        this.isRotating = true;
+        this.rotationChanged = false;
     }
     
     /**
@@ -413,11 +547,16 @@ class CanvasController {
             depth: this.placingDef.defaultDepth
         });
         
+        // Snap to grid if enabled
+        const finalPos = this.snapToGrid
+            ? this._snapPosition(clampedPos.x, clampedPos.y)
+            : clampedPos;
+        
         // Set ghost preview on renderer
         this.renderer.setGhostPreview({
             type: this.placingDef.type,
-            x: clampedPos.x,
-            y: clampedPos.y,
+            x: finalPos.x,
+            y: finalPos.y,
             width: this.placingDef.defaultWidth,
             depth: this.placingDef.defaultDepth,
             colour: this.placingDef.defaultColour
@@ -630,6 +769,32 @@ class CanvasController {
         this.isDragging = false;
         this.placingType = null;
         this.undoStack = [];
+    }
+
+    /**
+     * Snap a world position to the nearest grid increment.
+     *
+     * @param {number} worldX - X position in meters
+     * @param {number} worldY - Y position in meters
+     * @returns {Object} Snapped position { x, y }
+     * @private
+     */
+    _snapPosition(worldX, worldY) {
+        const inc = this.snapIncrement;
+        return {
+            x: Math.round(worldX / inc) * inc,
+            y: Math.round(worldY / inc) * inc
+        };
+    }
+
+    /**
+     * Toggle snap-to-grid on or off.
+     *
+     * @returns {boolean} New snap-to-grid state
+     */
+    toggleSnapToGrid() {
+        this.snapToGrid = !this.snapToGrid;
+        return this.snapToGrid;
     }
 }
 

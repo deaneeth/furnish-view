@@ -6,10 +6,13 @@
  * - Coordinate scaling (real-world meters → canvas pixels)
  * - Hit detection (point-in-rectangle test for furniture selection)
  * - Boundary clamping (prevent furniture placement outside room)
+ * - Type-specific furniture silhouettes (top-down shapes per type)
+ * - Adaptive label scaling (font size proportional to furniture pixel size)
  * - Render loop (clear → grid → room → furniture → selection)
  * 
  * Canvas API methods used: fillRect, strokeRect, beginPath, moveTo, lineTo,
- * fill, stroke, clearRect, save, restore, translate, rotate, fillText, setLineDash, arc
+ * fill, stroke, clearRect, save, restore, translate, rotate, fillText, setLineDash, arc,
+ * quadraticCurveTo, ellipse
  * 
  * @file js/graphics/Renderer2D.js
  * @module graphics/Renderer2D
@@ -29,14 +32,21 @@ import {
  * @type {Object}
  */
 const RENDER_COLOURS = {
-    GRID: '#E5E5E5',
+    GRID: '#D0D0D0',
+    GRID_MINOR: '#EDEDED',
     GRID_LABEL: '#999999',
+    ROOM_BOUNDARY: '#333333',
     SELECTION: '#3B82F6',
     SELECTION_HANDLE: '#3B82F6',
+    ROTATION_HANDLE: '#2563EB',
+    ROTATION_BADGE_BG: 'rgba(37, 99, 235, 0.85)',
+    ROTATION_BADGE_TEXT: '#FFFFFF',
     FURNITURE_BORDER: 'rgba(0, 0, 0, 0.3)',
     FURNITURE_LABEL: '#FFFFFF',
     DIMENSION_LABEL: '#666666',
-    CANVAS_BG: '#FAFAFA'
+    CANVAS_BG: '#F0F0F0',
+    EMPTY_STATE: '#AAAAAA',
+    SCALE_INDICATOR: '#BBBBBB'
 };
 
 /**
@@ -50,6 +60,10 @@ const RENDER_CONFIG = {
     SELECTION_BORDER_WIDTH: 2,
     SELECTION_DASH: [6, 4],
     HANDLE_SIZE: 8,
+    ROTATION_HANDLE_RADIUS: 8,
+    ROTATION_ARM_LENGTH: 24,
+    ROTATION_ARM_WIDTH: 1.5,
+    ROTATION_BADGE_FONT_SIZE: 10,
     LABEL_FONT_SIZE: 12,
     DIMENSION_FONT_SIZE: 11,
     MIN_LABEL_SIZE: 40 // Minimum furniture size to show label
@@ -289,6 +303,52 @@ class Renderer2D {
     }
     
     /**
+     * Draw empty state guidance when no furniture is placed.
+     * Nielsen H10: Help and Documentation — contextual, not intrusive.
+     *
+     * @private
+     */
+    _drawEmptyState() {
+        if (!this.ctx || !this.room) return;
+        
+        const ctx = this.ctx;
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        
+        ctx.save();
+        ctx.font = 'italic 14px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = RENDER_COLOURS.EMPTY_STATE;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+            'Click a furniture item from the toolbar, then click here to place it',
+            centerX, centerY
+        );
+        ctx.restore();
+    }
+    
+    /**
+     * Draw scale indicator in the bottom-right corner of the canvas.
+     * Shows the current mapping between 1 meter and canvas pixels.
+     *
+     * @private
+     */
+    _drawScaleIndicator() {
+        if (!this.ctx || !this.scaleFactor) return;
+        
+        const ctx = this.ctx;
+        const px = Math.round(this.scaleFactor);
+        
+        ctx.save();
+        ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = RENDER_COLOURS.SCALE_INDICATOR;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`Scale: 1m = ${px}px`, this.width - 10, this.height - 6);
+        ctx.restore();
+    }
+    
+    /**
      * Main render method - draws the complete scene.
      * 
      * RENDER LOOP ORDER:
@@ -329,6 +389,11 @@ class Renderer2D {
         // Step 3: Draw room outline
         this._drawRoom();
         
+        // Step 3.5: Draw dimension labels (outside room edges)
+        if (this.showDimensions) {
+            this._drawDimensionLabels();
+        }
+        
         // Step 4: Draw all furniture items
         this._drawAllFurniture();
         
@@ -344,6 +409,14 @@ class Renderer2D {
         if (this.ghostPreview) {
             this._drawGhostPreview();
         }
+        
+        // Step 7: Empty state guidance (H10 — contextual help)
+        if (!this.furniture || this.furniture.length === 0) {
+            this._drawEmptyState();
+        }
+        
+        // Step 8: Scale indicator (bottom-right corner)
+        this._drawScaleIndicator();
     }
     
     /**
@@ -362,17 +435,36 @@ class Renderer2D {
         const roomWidth = this.room.width;
         const roomDepth = this.room.depth;
         
-        // Get room corners in canvas coordinates
-        const topLeft = this.worldToCanvas(0, 0);
-        const bottomRight = this.worldToCanvas(roomWidth, roomDepth);
-        
         ctx.save();
+        
+        // --- Minor grid lines (0.5m intervals) ---
+        ctx.strokeStyle = RENDER_COLOURS.GRID_MINOR;
+        ctx.lineWidth = 0.5;
+        
+        for (let x = 0.5; x < roomWidth; x += 1) {
+            const pos = this.worldToCanvas(x, 0);
+            const endPos = this.worldToCanvas(x, roomDepth);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.lineTo(endPos.x, endPos.y);
+            ctx.stroke();
+        }
+        for (let y = 0.5; y < roomDepth; y += 1) {
+            const pos = this.worldToCanvas(0, y);
+            const endPos = this.worldToCanvas(roomWidth, y);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.lineTo(endPos.x, endPos.y);
+            ctx.stroke();
+        }
+        
+        // --- Major grid lines (1m intervals) ---
         ctx.strokeStyle = RENDER_COLOURS.GRID;
         ctx.lineWidth = RENDER_CONFIG.GRID_LINE_WIDTH;
-        ctx.font = `${RENDER_CONFIG.DIMENSION_FONT_SIZE}px sans-serif`;
+        ctx.font = '10px sans-serif';
         ctx.fillStyle = RENDER_COLOURS.GRID_LABEL;
         
-        // Draw vertical lines (X-axis)
+        // Vertical lines (X-axis)
         for (let x = 0; x <= roomWidth; x++) {
             const pos = this.worldToCanvas(x, 0);
             const endPos = this.worldToCanvas(x, roomDepth);
@@ -382,13 +474,11 @@ class Renderer2D {
             ctx.lineTo(endPos.x, endPos.y);
             ctx.stroke();
             
-            // Draw label at top
-            if (x % 1 === 0) {
-                ctx.fillText(`${x}m`, pos.x - 8, pos.y - 8);
-            }
+            // Label at top (outside room boundary)
+            ctx.fillText(`${x}m`, pos.x - 8, pos.y - 8);
         }
         
-        // Draw horizontal lines (Y-axis / depth)
+        // Horizontal lines (Y-axis / depth)
         for (let y = 0; y <= roomDepth; y++) {
             const pos = this.worldToCanvas(0, y);
             const endPos = this.worldToCanvas(roomWidth, y);
@@ -398,15 +488,159 @@ class Renderer2D {
             ctx.lineTo(endPos.x, endPos.y);
             ctx.stroke();
             
-            // Draw label on left
-            if (y % 1 === 0) {
-                ctx.fillText(`${y}m`, pos.x - 24, pos.y + 4);
-            }
+            // Label on left (outside room boundary)
+            ctx.fillText(`${y}m`, pos.x - 24, pos.y + 4);
         }
         
         ctx.restore();
     }
-    
+
+    /**
+     * Draw architectural dimension labels along room edges.
+     *
+     * Renders width and depth dimension lines with arrow endpoints
+     * and extension lines outside the room outline, similar to
+     * architectural blueprint annotations.
+     *
+     * @private
+     */
+    _drawDimensionLabels() {
+        if (!this.ctx || !this.room) return;
+
+        const ctx = this.ctx;
+        const roomW = this.room.width;
+        const roomD = this.room.depth;
+
+        // Canvas coordinates for room corners
+        const topLeft = this.worldToCanvas(0, 0);
+        const topRight = this.worldToCanvas(roomW, 0);
+        const bottomLeft = this.worldToCanvas(0, roomD);
+        const bottomRight = this.worldToCanvas(roomW, roomD);
+
+        // Offset distances (pixels)
+        const LABEL_OFFSET = 28;    // Distance from room edge
+        const TICK_LENGTH = 6;      // Extension line length
+        const ARROW_SIZE = 5;       // Arrowhead size
+
+        ctx.save();
+        ctx.strokeStyle = RENDER_COLOURS.DIMENSION_LABEL;
+        ctx.fillStyle = RENDER_COLOURS.DIMENSION_LABEL;
+        ctx.lineWidth = 1;
+        ctx.font = `${RENDER_CONFIG.DIMENSION_FONT_SIZE}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // --- Width label (bottom edge) ---
+        const widthY = bottomLeft.y + LABEL_OFFSET;
+
+        // Extension lines (vertical ticks at each end)
+        ctx.beginPath();
+        ctx.moveTo(bottomLeft.x, bottomLeft.y + 4);
+        ctx.lineTo(bottomLeft.x, widthY + TICK_LENGTH);
+        ctx.moveTo(bottomRight.x, bottomRight.y + 4);
+        ctx.lineTo(bottomRight.x, widthY + TICK_LENGTH);
+        ctx.stroke();
+
+        // Dimension line with arrows
+        const widthText = `${roomW.toFixed(1)}m`;
+        const textWidth = ctx.measureText(widthText).width + 12;
+        const midX = (bottomLeft.x + bottomRight.x) / 2;
+
+        // Left segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(bottomLeft.x, widthY);
+        ctx.lineTo(midX - textWidth / 2, widthY);
+        ctx.stroke();
+        this._drawArrowhead(ctx, bottomLeft.x, widthY, 'right', ARROW_SIZE);
+
+        // Right segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(midX + textWidth / 2, widthY);
+        ctx.lineTo(bottomRight.x, widthY);
+        ctx.stroke();
+        this._drawArrowhead(ctx, bottomRight.x, widthY, 'left', ARROW_SIZE);
+
+        // Width text
+        ctx.fillText(widthText, midX, widthY);
+
+        // --- Depth label (right edge) ---
+        const depthX = topRight.x + LABEL_OFFSET;
+
+        // Extension lines (horizontal ticks at each end)
+        ctx.beginPath();
+        ctx.moveTo(topRight.x + 4, topRight.y);
+        ctx.lineTo(depthX + TICK_LENGTH, topRight.y);
+        ctx.moveTo(bottomRight.x + 4, bottomRight.y);
+        ctx.lineTo(depthX + TICK_LENGTH, bottomRight.y);
+        ctx.stroke();
+
+        // Depth dimension line
+        const depthText = `${roomD.toFixed(1)}m`;
+        const depthTextWidth = ctx.measureText(depthText).width + 12;
+        const midY = (topRight.y + bottomRight.y) / 2;
+
+        // Top segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(depthX, topRight.y);
+        ctx.lineTo(depthX, midY - depthTextWidth / 2);
+        ctx.stroke();
+        this._drawArrowhead(ctx, depthX, topRight.y, 'down', ARROW_SIZE);
+
+        // Bottom segment with arrow
+        ctx.beginPath();
+        ctx.moveTo(depthX, midY + depthTextWidth / 2);
+        ctx.lineTo(depthX, bottomRight.y);
+        ctx.stroke();
+        this._drawArrowhead(ctx, depthX, bottomRight.y, 'up', ARROW_SIZE);
+
+        // Depth text (rotated 90°)
+        ctx.save();
+        ctx.translate(depthX, midY);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(depthText, 0, 0);
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    /**
+     * Draw a small arrowhead at the given position.
+     *
+     * @param {CanvasRenderingContext2D} ctx - Canvas context
+     * @param {number} x - Arrowhead tip X
+     * @param {number} y - Arrowhead tip Y
+     * @param {string} direction - 'left', 'right', 'up', or 'down'
+     * @param {number} size - Arrowhead size in pixels
+     * @private
+     */
+    _drawArrowhead(ctx, x, y, direction, size) {
+        ctx.beginPath();
+        switch (direction) {
+            case 'right':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + size, y - size / 2);
+                ctx.lineTo(x + size, y + size / 2);
+                break;
+            case 'left':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - size, y - size / 2);
+                ctx.lineTo(x - size, y + size / 2);
+                break;
+            case 'down':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - size / 2, y - size);
+                ctx.lineTo(x + size / 2, y - size);
+                break;
+            case 'up':
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - size / 2, y + size);
+                ctx.lineTo(x + size / 2, y + size);
+                break;
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+
     /**
      * ALGORITHM 1: Draw Room
      * 
@@ -455,9 +689,9 @@ class Renderer2D {
         ctx.fillStyle = this.room.floorColour || '#8B7355';
         ctx.fillRect(topLeft.x, topLeft.y, scaledWidth, scaledDepth);
         
-        // Draw wall outline
-        ctx.strokeStyle = this.room.wallColour || '#E8E0D4';
-        ctx.lineWidth = RENDER_CONFIG.WALL_LINE_WIDTH;
+        // Draw room boundary — distinct from grid lines
+        ctx.strokeStyle = RENDER_COLOURS.ROOM_BOUNDARY;
+        ctx.lineWidth = 2;
         ctx.strokeRect(topLeft.x, topLeft.y, scaledWidth, scaledDepth);
     }
     
@@ -553,20 +787,25 @@ class Renderer2D {
     _drawAllFurniture() {
         if (!this.furniture || this.furniture.length === 0) return;
         
+        // Two-pass rendering: draw rugs first (lower z-order) so other
+        // furniture items render on top of them, like a real floor plan.
         for (const item of this.furniture) {
-            this._drawFurnitureItem(item);
+            if (item.type === 'rug') this._drawFurnitureItem(item);
+        }
+        for (const item of this.furniture) {
+            if (item.type !== 'rug') this._drawFurnitureItem(item);
         }
     }
     
     /**
      * ALGORITHM 2: Draw Furniture Item
      * 
-     * Renders a single furniture item:
+     * Renders a single furniture item with a type-specific top-down silhouette:
      * 1. Convert world position to canvas position using scale
-     * 2. If rotation > 0: save context, translate to centre, rotate, draw, restore
-     * 3. Draw filled rectangle with item's colour
-     * 4. Draw darker border stroke
-     * 5. Draw centred label (furniture type)
+     * 2. Save context, translate to item centre, rotate if needed
+     * 3. Dispatch to type-specific shape drawing method
+     * 4. Draw adaptive label (size scales with furniture pixel dimensions)
+     * 5. Restore context
      * 
      * @param {Object} item - Furniture item object
      * @private
@@ -583,84 +822,739 @@ class Renderer2D {
         
         ctx.save();
         
-        // Handle rotation if present
+        // Always translate to item centre for consistent rotation and drawing
+        const centerX = pos.x + scaledWidth / 2;
+        const centerY = pos.y + scaledDepth / 2;
+        ctx.translate(centerX, centerY);
+        
+        // Apply rotation if present
         if (item.rotation && item.rotation !== 0) {
-            // Translate to furniture centre
-            const centerX = pos.x + scaledWidth / 2;
-            const centerY = pos.y + scaledDepth / 2;
-            
-            ctx.translate(centerX, centerY);
-            ctx.rotate((item.rotation * Math.PI) / 180); // Convert degrees to radians
-            
-            // Draw furniture centred at origin
-            this._drawFurnitureRect(-scaledWidth / 2, -scaledDepth / 2, scaledWidth, scaledDepth, item);
-        } else {
-            // No rotation - draw at position
-            this._drawFurnitureRect(pos.x, pos.y, scaledWidth, scaledDepth, item);
+            ctx.rotate((item.rotation * Math.PI) / 180);
         }
+        
+        // Draw type-specific shape centred at origin
+        this._drawFurnitureShape(-scaledWidth / 2, -scaledDepth / 2, scaledWidth, scaledDepth, item);
         
         ctx.restore();
     }
     
     /**
-     * Draw the furniture rectangle with fill, border, and label.
+     * Draw a type-specific top-down silhouette for a furniture item.
      * 
-     * @param {number} x - X position in canvas pixels
-     * @param {number} y - Y position in canvas pixels
-     * @param {number} width - Width in canvas pixels
-     * @param {number} height - Height (depth) in canvas pixels
+     * Dispatches to per-type drawing methods based on `item.type`.
+     * Falls back to a plain filled rectangle for unknown types.
+     * After drawing the shape, renders an adaptive label.
+     * 
+     * @param {number} x - X position (top-left, relative to translated origin)
+     * @param {number} y - Y position (top-left, relative to translated origin)
+     * @param {number} w - Width in canvas pixels
+     * @param {number} h - Height (depth) in canvas pixels
      * @param {Object} item - Furniture item for colour and type
      * @private
      */
-    _drawFurnitureRect(x, y, width, height, item) {
+    _drawFurnitureShape(x, y, w, h, item) {
         if (!this.ctx) return;
         
+        const fillColour = item.colour || '#5C4033';
+        const strokeColour = this._darkenHex(fillColour, 0.3);
+        
+        switch (item.type) {
+            case 'chair':
+                this._drawChairShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'dining-table':
+                this._drawDiningTableShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'side-table':
+                this._drawSideTableShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'sofa':
+                this._drawSofaShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'armchair':
+                this._drawArmchairShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'coffee-table':
+                this._drawCoffeeTableShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'bookshelf':
+                this._drawBookshelfShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'desk':
+                this._drawDeskShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'tv-stand':
+                this._drawTvStandShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'bed':
+                this._drawBedShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'wardrobe':
+                this._drawWardrobeShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'rug':
+                this._drawRugShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            default:
+                this._drawDefaultShape(x, y, w, h, fillColour, strokeColour);
+                break;
+        }
+        
+        // Draw adaptive label
+        this._drawFurnitureLabel(x, y, w, h, item);
+    }
+    
+    // ── Type-specific silhouette methods ────────────────────────────
+    
+    /**
+     * Draw chair silhouette: rounded seat + backrest band + 4 corner leg circles.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawChairShape(x, y, w, h, fill, stroke) {
         const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.12;
+        const legR = Math.max(1.5, Math.min(w, h) * 0.08);
+        const inset = legR * 1.2;
         
-        // Draw fill
-        ctx.fillStyle = item.colour || '#5C4033';
-        ctx.fillRect(x, y, width, height);
-        
-        // Draw border (slightly darker than fill)
-        ctx.strokeStyle = RENDER_COLOURS.FURNITURE_BORDER;
+        // Seat — rounded rectangle
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
         ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
-        ctx.strokeRect(x, y, width, height);
+        ctx.stroke();
         
-        // Draw label if furniture is large enough
-        if (width >= RENDER_CONFIG.MIN_LABEL_SIZE && height >= RENDER_CONFIG.MIN_LABEL_SIZE) {
-            this._drawFurnitureLabel(x, y, width, height, item.type);
+        // Backrest — narrow band along top edge
+        const backH = Math.max(2, h * 0.15);
+        ctx.fillStyle = stroke;
+        this._drawRoundedRect(x, y, w, backH, r * 0.5);
+        ctx.fill();
+        
+        // 4 corner legs
+        ctx.fillStyle = stroke;
+        const legPositions = [
+            [x + inset, y + inset],
+            [x + w - inset, y + inset],
+            [x + inset, y + h - inset],
+            [x + w - inset, y + h - inset]
+        ];
+        for (const [lx, ly] of legPositions) {
+            ctx.beginPath();
+            ctx.arc(lx, ly, legR, 0, Math.PI * 2);
+            ctx.fill();
         }
     }
     
     /**
-     * Draw centred label text inside furniture.
+     * Draw dining table silhouette: rounded rectangle surface + 4 inset leg circles.
      * 
-     * @param {number} x - Furniture X position
-     * @param {number} y - Furniture Y position
-     * @param {number} width - Furniture width
-     * @param {number} height - Furniture height
-     * @param {string} type - Furniture type for label
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
      * @private
      */
-    _drawFurnitureLabel(x, y, width, height, type) {
-        if (!this.ctx || !type) return;
+    _drawDiningTableShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.08;
+        const legR = Math.max(1.5, Math.min(w, h) * 0.06);
+        const inset = Math.min(w, h) * 0.15;
         
+        // Table surface
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // 4 inset legs
+        ctx.fillStyle = stroke;
+        const legPositions = [
+            [x + inset, y + inset],
+            [x + w - inset, y + inset],
+            [x + inset, y + h - inset],
+            [x + w - inset, y + h - inset]
+        ];
+        for (const [lx, ly] of legPositions) {
+            ctx.beginPath();
+            ctx.arc(lx, ly, legR, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    
+    /**
+     * Draw side table silhouette: circular top + small centre pedestal circle.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawSideTableShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const radius = Math.min(w, h) / 2;
+        
+        // Circular top
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Centre pedestal
+        const pedestalR = radius * 0.25;
+        ctx.fillStyle = stroke;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pedestalR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    /**
+     * Draw sofa silhouette: U-shape with seat, back cushion, and armrests.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawSofaShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.1;
+        const armW = Math.max(2, w * 0.12);
+        const backH = Math.max(2, h * 0.2);
+        
+        // Main seat area — full bounds
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Back cushion — thick band along top edge
+        ctx.fillStyle = stroke;
+        this._drawRoundedRect(x, y, w, backH, r * 0.6);
+        ctx.fill();
+        
+        // Left armrest
+        ctx.fillStyle = this._darkenHex(fill, 0.15);
+        this._drawRoundedRect(x, y + backH, armW, h - backH, r * 0.4);
+        ctx.fill();
+        
+        // Right armrest
+        this._drawRoundedRect(x + w - armW, y + backH, armW, h - backH, r * 0.4);
+        ctx.fill();
+    }
+    
+    /**
+     * Draw armchair silhouette: squarer proportions, seat + back + armrests.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawArmchairShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.14;
+        const armW = Math.max(2, w * 0.18);
+        const backH = Math.max(2, h * 0.22);
+        
+        // Main seat — rounded rectangle
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Back cushion
+        ctx.fillStyle = stroke;
+        this._drawRoundedRect(x, y, w, backH, r * 0.6);
+        ctx.fill();
+        
+        // Left armrest
+        ctx.fillStyle = this._darkenHex(fill, 0.15);
+        this._drawRoundedRect(x, y + backH, armW, h - backH, r * 0.4);
+        ctx.fill();
+        
+        // Right armrest
+        this._drawRoundedRect(x + w - armW, y + backH, armW, h - backH, r * 0.4);
+        ctx.fill();
+    }
+    
+    /**
+     * Draw coffee table silhouette: rounded rectangle + inner offset shelf rectangle.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawCoffeeTableShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.12;
+        
+        // Outer surface
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Inner shelf rectangle (offset inward)
+        const inset = Math.min(w, h) * 0.18;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        this._drawRoundedRect(x + inset, y + inset, w - inset * 2, h - inset * 2, r * 0.5);
+        ctx.stroke();
+    }
+    
+    /**
+     * Draw bookshelf silhouette: rectangle with horizontal shelf division lines.
+     * Front edge gets a slightly different fill for visual depth.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawBookshelfShape(x, y, w, h, fill, stroke) {
         const ctx = this.ctx;
         
-        // Format type for display (capitalize, replace hyphens)
-        const label = type
-            .split('-')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
+        // Main body
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.strokeRect(x, y, w, h);
+        
+        // Front edge — slightly darker band along bottom
+        const edgeH = Math.max(2, h * 0.12);
+        ctx.fillStyle = this._darkenHex(fill, 0.15);
+        ctx.fillRect(x, y + h - edgeH, w, edgeH);
+        
+        // Shelf division lines (3-4 horizontal lines)
+        const divisions = 4;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        for (let i = 1; i < divisions; i++) {
+            const lineY = y + (h * i) / divisions;
+            ctx.beginPath();
+            ctx.moveTo(x + 1, lineY);
+            ctx.lineTo(x + w - 1, lineY);
+            ctx.stroke();
+        }
+    }
+    
+    /**
+     * Draw desk silhouette: rectangle with a dividing line for the drawer unit.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawDeskShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.06;
+        
+        // Main surface
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Drawer unit — right third, slightly darker
+        const drawerW = w * 0.35;
+        ctx.fillStyle = this._darkenHex(fill, 0.12);
+        this._drawRoundedRect(x + w - drawerW, y, drawerW, h, r);
+        ctx.fill();
+        
+        // Dividing line between desk and drawer
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + w - drawerW, y + 1);
+        ctx.lineTo(x + w - drawerW, y + h - 1);
+        ctx.stroke();
+    }
+    
+    /**
+     * Draw TV stand silhouette: rounded rect + horizontal divider + 2 knob circles.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawTvStandShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.08;
+        
+        // Main surface
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+        
+        // Horizontal divider through middle
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y + h * 0.45);
+        ctx.lineTo(x + w - 2, y + h * 0.45);
+        ctx.stroke();
+        
+        // 2 small knob circles
+        const knobR = Math.max(1.5, Math.min(w, h) * 0.05);
+        ctx.fillStyle = stroke;
+        ctx.beginPath();
+        ctx.arc(x + w * 0.35, y + h * 0.72, knobR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + w * 0.65, y + h * 0.72, knobR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    /**
+     * Draw bed silhouette: rect with headboard strip + 2 pillows + duvet fold.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawBedShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        
+        // Mattress area
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.strokeRect(x, y, w, h);
+        
+        // Headboard — darker strip at top edge
+        const headH = Math.max(3, h * 0.08);
+        ctx.fillStyle = stroke;
+        ctx.fillRect(x, y, w, headH);
+        
+        // 2 pillows near headboard
+        const pillowW = w * 0.35;
+        const pillowH = Math.max(4, h * 0.1);
+        const pillowY = y + headH + 4;
+        const pillowR = Math.min(pillowW, pillowH) * 0.3;
+        const pillowLight = this._darkenHex(fill, -0.1);
+        
+        ctx.fillStyle = pillowLight;
+        this._drawRoundedRect(x + w * 0.08, pillowY, pillowW, pillowH, pillowR);
+        ctx.fill();
+        this._drawRoundedRect(x + w * 0.57, pillowY, pillowW, pillowH, pillowR);
+        ctx.fill();
+        
+        // Subtle duvet fold line across middle
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + h * 0.55);
+        ctx.lineTo(x + w - 3, y + h * 0.55);
+        ctx.stroke();
+    }
+    
+    /**
+     * Draw wardrobe silhouette: rect + vertical centre line + 2 handle rects.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawWardrobeShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        
+        // Main body
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.strokeRect(x, y, w, h);
+        
+        // Vertical centre line (door division)
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y + 2);
+        ctx.lineTo(x + w / 2, y + h - 2);
+        ctx.stroke();
+        
+        // 2 handle rectangles (on each door half)
+        const handleW = Math.max(2, w * 0.04);
+        const handleH = Math.max(4, h * 0.15);
+        ctx.fillStyle = stroke;
+        ctx.fillRect(x + w / 2 - handleW - 3, y + h * 0.42, handleW, handleH);
+        ctx.fillRect(x + w / 2 + 3, y + h * 0.42, handleW, handleH);
+    }
+    
+    /**
+     * Draw rug silhouette: semi-transparent filled rect with darker border.
+     *
+     * Alpha is reduced so the floor grid shows through the rug, matching
+     * the architectural floor plan convention.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawRugShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
         
         ctx.save();
-        ctx.font = `${RENDER_CONFIG.LABEL_FONT_SIZE}px sans-serif`;
-        ctx.fillStyle = RENDER_COLOURS.FURNITURE_LABEL;
+        ctx.globalAlpha = 0.6;
+        
+        // Main rug fill
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        
+        // Darker border frame
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+        
+        // Inner thinner border to suggest rug fringe/edge pattern
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 5, y + 5, w - 10, h - 10);
+        
+        ctx.restore();
+    }
+    
+    /**
+     * Draw default furniture silhouette: plain filled rectangle.
+     * Used as fallback for unknown furniture types.
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawDefaultShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.strokeRect(x, y, w, h);
+    }
+    
+    // ── Shape / label helper methods ────────────────────────────────
+    
+    /**
+     * Draw a rounded rectangle path (does NOT fill or stroke — caller must do that).
+     * 
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {number} r - Corner radius
+     * @private
+     */
+    _drawRoundedRect(x, y, w, h, r) {
+        const ctx = this.ctx;
+        const clampedR = Math.min(r, w / 2, h / 2);
+        
+        ctx.beginPath();
+        ctx.moveTo(x + clampedR, y);
+        ctx.lineTo(x + w - clampedR, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + clampedR);
+        ctx.lineTo(x + w, y + h - clampedR);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - clampedR, y + h);
+        ctx.lineTo(x + clampedR, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - clampedR);
+        ctx.lineTo(x, y + clampedR);
+        ctx.quadraticCurveTo(x, y, x + clampedR, y);
+        ctx.closePath();
+    }
+    
+    /**
+     * Darken a hex colour by a given factor.
+     * 
+     * @param {string} hex - Hex colour string (e.g. '#5C4033')
+     * @param {number} factor - Darkening factor (0–1, where 0.3 = 30% darker)
+     * @returns {string} Darkened hex colour
+     * @private
+     */
+    _darkenHex(hex, factor) {
+        const sanitised = hex.replace('#', '');
+        const r = parseInt(sanitised.substring(0, 2), 16);
+        const g = parseInt(sanitised.substring(2, 4), 16);
+        const b = parseInt(sanitised.substring(4, 6), 16);
+        
+        const dr = Math.round(r * (1 - factor));
+        const dg = Math.round(g * (1 - factor));
+        const db = Math.round(b * (1 - factor));
+        
+        return '#' + [dr, dg, db]
+            .map(c => Math.max(0, Math.min(255, c)).toString(16).padStart(2, '0'))
+            .join('');
+    }
+    
+    /**
+     * Return a contrast-aware text colour for a given background hex colour.
+     * Uses the W3C relative luminance formula to decide between white (#FFFFFF)
+     * for dark backgrounds and dark grey (#333333) for light backgrounds.
+     *
+     * @param {string} hex - Background hex colour string (e.g. '#DEB887')
+     * @returns {string} '#FFFFFF' or '#333333'
+     * @private
+     */
+    _getContrastColour(hex) {
+        const sanitised = (hex || '#5C4033').replace('#', '');
+        const r = parseInt(sanitised.substring(0, 2), 16) / 255;
+        const g = parseInt(sanitised.substring(2, 4), 16) / 255;
+        const b = parseInt(sanitised.substring(4, 6), 16) / 255;
+
+        // sRGB to linear conversion for each channel
+        const toLinear = (c) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+
+        // WCAG threshold: luminance > 0.179 is "light" → use dark text
+        return luminance > 0.179 ? '#333333' : '#FFFFFF';
+    }
+    
+    /**
+     * Get an abbreviated 2-letter label for a furniture type.
+     * Used when furniture is too small for a full label but large enough
+     * for an abbreviation.
+     * 
+     * @param {string} type - Furniture type key (e.g. 'dining-table')
+     * @returns {string} Abbreviated label (e.g. 'DT')
+     * @private
+     */
+    _getAbbreviatedLabel(type) {
+        const abbreviations = {
+            'chair': 'CH',
+            'dining-table': 'DT',
+            'side-table': 'ST',
+            'sofa': 'SF',
+            'armchair': 'AC',
+            'coffee-table': 'CT',
+            'bookshelf': 'BS',
+            'desk': 'DK',
+            'tv-stand': 'TV',
+            'bed': 'BD',
+            'wardrobe': 'WR',
+            'rug': 'RG'
+        };
+        return abbreviations[type] || type.charAt(0).toUpperCase();
+    }
+    
+    /**
+     * Draw adaptive centred label text inside furniture.
+     * 
+     * Font size scales proportionally with the furniture's pixel dimensions:
+     * - Proportional: fontSize = minDimension × 0.25, clamped to [8, 14]
+     * - If minDimension < 20px: label is skipped entirely (too small to read)
+     * - If minDimension < 40px: abbreviated label is used (e.g. 'CH', 'DT')
+     * - Otherwise: full capitalised label is drawn
+     * 
+     * @param {number} x - Furniture X position (top-left, relative to origin)
+     * @param {number} y - Furniture Y position (top-left, relative to origin)
+     * @param {number} width - Furniture width in canvas pixels
+     * @param {number} height - Furniture height in canvas pixels
+     * @param {Object} item - Furniture item object with type and colour
+     * @private
+     */
+    _drawFurnitureLabel(x, y, width, height, item) {
+        if (!this.ctx || !item || !item.type) return;
+        
+        const ctx = this.ctx;
+        const minDimension = Math.min(width, height);
+        
+        // Skip label entirely if furniture is too small to read
+        if (minDimension < 20) return;
+        
+        // Calculate adaptive font size: proportional to item size with bounds
+        const fontSize = Math.max(8, Math.min(14, minDimension * 0.25));
+        
+        // Choose label text: abbreviated for small items, full for larger
+        let label;
+        if (minDimension < 40) {
+            label = this._getAbbreviatedLabel(item.type);
+        } else {
+            // Full capitalised label
+            label = item.type
+                .split('-')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+        
+        // Choose contrast-aware text colour based on furniture background
+        const textColour = this._getContrastColour(item.colour);
+        const isLightText = textColour === '#FFFFFF';
+
+        ctx.save();
+        ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.fillStyle = textColour;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Add text shadow for readability
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        // Text shadow for readability — dark shadow for light text, light shadow for dark text
+        ctx.shadowColor = isLightText ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.6)';
         ctx.shadowBlur = 2;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
@@ -734,12 +1628,155 @@ class Renderer2D {
         // Bottom-right handle
         ctx.fillRect(x + scaledWidth - halfHandle, y + scaledDepth - halfHandle, handleSize, handleSize);
         
+        // --- Rotation handle (Task 4B.2) ---
+        const armLength = RENDER_CONFIG.ROTATION_ARM_LENGTH;
+        const handleRadius = RENDER_CONFIG.ROTATION_HANDLE_RADIUS;
+        const topCenterX = x + scaledWidth / 2;
+        const topCenterY = y;
+        const handleCX = topCenterX;
+        const handleCY = topCenterY - armLength;
+        
+        // Rotation arm line (thin solid)
+        ctx.strokeStyle = RENDER_COLOURS.ROTATION_HANDLE;
+        ctx.lineWidth = RENDER_CONFIG.ROTATION_ARM_WIDTH;
+        ctx.beginPath();
+        ctx.moveTo(topCenterX, topCenterY - 2);
+        ctx.lineTo(handleCX, handleCY);
+        ctx.stroke();
+        
+        // Rotation handle circle
+        ctx.beginPath();
+        ctx.arc(handleCX, handleCY, handleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = RENDER_COLOURS.ROTATION_HANDLE;
+        ctx.fill();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Rotation icon inside circle (arc arrow)
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(handleCX, handleCY, 4, -Math.PI * 0.7, Math.PI * 0.5);
+        ctx.stroke();
+        // Arrowhead
+        const arrowTipX = handleCX + 4 * Math.cos(Math.PI * 0.5);
+        const arrowTipY = handleCY + 4 * Math.sin(Math.PI * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(arrowTipX - 3, arrowTipY - 2);
+        ctx.lineTo(arrowTipX, arrowTipY);
+        ctx.lineTo(arrowTipX + 2, arrowTipY - 3);
+        ctx.stroke();
+        
+        // --- Angle badge (only when rotation is non-zero) ---
+        if (item.rotation && item.rotation !== 0) {
+            const badgeText = `${Math.round(item.rotation)}\u00b0`;
+            const badgeFontSize = RENDER_CONFIG.ROTATION_BADGE_FONT_SIZE;
+            ctx.font = `600 ${badgeFontSize}px system-ui, sans-serif`;
+            const textWidth = ctx.measureText(badgeText).width;
+            const badgePadX = 4;
+            const badgePadY = 2;
+            const badgeW = textWidth + badgePadX * 2;
+            const badgeH = badgeFontSize + badgePadY * 2;
+            const badgeX = handleCX - badgeW / 2;
+            const badgeY = handleCY - handleRadius - badgeH - 4;
+            
+            // Badge background
+            ctx.fillStyle = RENDER_COLOURS.ROTATION_BADGE_BG;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
+            ctx.fill();
+            
+            // Badge text
+            ctx.fillStyle = RENDER_COLOURS.ROTATION_BADGE_TEXT;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(badgeText, handleCX, badgeY + badgeH / 2);
+        }
+        
+        // --- Furniture dimension label ("1.6m × 0.9m") below selection ---
+        this._drawFurnitureDimensions(item, x, y, scaledWidth, scaledDepth);
+        
         ctx.restore();
     }
     
     /**
+     * Draw real-world dimension label below a selected furniture item.
+     *
+     * Shows the item's width and depth in meters (e.g. "1.6m × 0.9m")
+     * positioned just below the selection border, centred horizontally.
+     * Reinforces the scaling requirement (FR4) and supports the
+     * consultation scenario.
+     *
+     * @param {Object} item - Furniture item with width and depth in meters
+     * @param {number} x - Selection box X (top-left, may be relative to rotation centre)
+     * @param {number} y - Selection box Y
+     * @param {number} w - Selection box width in pixels
+     * @param {number} h - Selection box height (depth) in pixels
+     * @private
+     */
+    _drawFurnitureDimensions(item, x, y, w, h) {
+        if (!this.ctx || !item) return;
+
+        const ctx = this.ctx;
+        const widthM = (item.width || 0).toFixed(1);
+        const depthM = (item.depth || 0).toFixed(1);
+        const dimText = `${widthM}m \u00d7 ${depthM}m`;
+
+        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = RENDER_COLOURS.DIMENSION_LABEL;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        // Position below the selection border (4px border offset + 6px gap)
+        ctx.fillText(dimText, x + w / 2, y + h + 10);
+    }
+    
+    /**
+     * Get canvas-space position of the rotation handle for a furniture item.
+     * Used by CanvasController for hit detection on the rotation affordance.
+     * 
+     * @param {Object} item - Furniture item with x, y, width, depth, rotation
+     * @returns {{ x: number, y: number }} Canvas coordinates of handle centre
+     */
+    getRotationHandlePosition(item) {
+        if (!item) return { x: 0, y: 0 };
+        
+        const pos = this.worldToCanvas(item.x, item.y);
+        const scaledWidth = this.scaleSize(item.width);
+        const scaledDepth = this.scaleSize(item.depth);
+        const armLength = RENDER_CONFIG.ROTATION_ARM_LENGTH;
+        
+        // Handle is at top-centre minus arm length, in local space
+        const localX = scaledWidth / 2;
+        const localY = -armLength;
+        
+        if (item.rotation && item.rotation !== 0) {
+            // Rotate the local handle position around the item centre
+            const centerX = pos.x + scaledWidth / 2;
+            const centerY = pos.y + scaledDepth / 2;
+            const rad = (item.rotation * Math.PI) / 180;
+            
+            // Local offset from centre
+            const dx = localX - scaledWidth / 2;
+            const dy = localY - scaledDepth / 2;
+            
+            return {
+                x: centerX + dx * Math.cos(rad) - dy * Math.sin(rad),
+                y: centerY + dx * Math.sin(rad) + dy * Math.cos(rad)
+            };
+        }
+        
+        return {
+            x: pos.x + localX,
+            y: pos.y + localY
+        };
+    }
+    
+    /**
      * Draw ghost preview for furniture placement.
-     * Shows a semi-transparent preview at the current mouse position.
+     * Shows a semi-transparent preview of the type-specific silhouette
+     * at the current mouse position.
      * 
      * @private
      */
@@ -761,22 +1798,21 @@ class Renderer2D {
         // Set transparency for ghost effect
         ctx.globalAlpha = 0.5;
         
-        // Draw fill
-        ctx.fillStyle = preview.colour || '#5C4033';
-        ctx.fillRect(pos.x, pos.y, scaledWidth, scaledDepth);
+        // Translate to centre for consistent shape rendering
+        ctx.translate(pos.x + scaledWidth / 2, pos.y + scaledDepth / 2);
         
-        // Draw border (dashed for preview)
+        // Draw type-specific silhouette as ghost
+        this._drawFurnitureShape(
+            -scaledWidth / 2, -scaledDepth / 2,
+            scaledWidth, scaledDepth,
+            preview
+        );
+        
+        // Dashed selection border overlay
         ctx.strokeStyle = RENDER_COLOURS.SELECTION;
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
-        ctx.strokeRect(pos.x, pos.y, scaledWidth, scaledDepth);
-        
-        // Draw label
-        if (scaledWidth >= RENDER_CONFIG.MIN_LABEL_SIZE && scaledDepth >= RENDER_CONFIG.MIN_LABEL_SIZE) {
-            ctx.setLineDash([]);
-            ctx.globalAlpha = 0.8;
-            this._drawFurnitureLabel(pos.x, pos.y, scaledWidth, scaledDepth, preview.type);
-        }
+        ctx.strokeRect(-scaledWidth / 2, -scaledDepth / 2, scaledWidth, scaledDepth);
         
         ctx.restore();
     }
