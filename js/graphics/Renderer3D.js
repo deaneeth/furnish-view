@@ -44,12 +44,6 @@ const SHADOW_MAP_SIZE = 2048;
 const SCENE_BACKGROUND = 0xf0f4f8;
 
 /**
- * Fog density for atmospheric depth — gentle fade for warmth
- * @type {number}
- */
-const FOG_DENSITY = 0.02;
-
-/**
  * Skirting board height in meters
  * @type {number}
  */
@@ -317,8 +311,51 @@ class Renderer3D {
         this.scene.add(this.gridHelper);
         this.roomMeshes.add(this.gridHelper);
 
-        // --- Atmospheric fog for depth perception ---
-        this.scene.fog = new THREE.FogExp2(SCENE_BACKGROUND, FOG_DENSITY);
+        // --- Extended ground plane (spatial context beyond the room) ---
+        const groundSize = Math.max(roomWidth, roomDepth) * 5;
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0xE8E8E8,
+            roughness: 0.95,
+            metalness: 0.0
+        });
+        const groundPlane = new THREE.Mesh(groundGeo, groundMat);
+        groundPlane.rotation.x = -Math.PI / 2;
+        groundPlane.position.y = -0.005;
+        groundPlane.receiveShadow = true;
+        groundPlane.castShadow = false;
+        this.scene.add(groundPlane);
+        this.roomMeshes.add(groundPlane);
+
+        // --- Subtle reference grid on extended ground ---
+        const gridSpan = Math.max(roomWidth, roomDepth) * 4;
+        const gridDiv = Math.round(gridSpan); // ~1 m per division
+        const extGrid = new THREE.GridHelper(gridSpan, gridDiv, 0xCCCCCC, 0xDDDDDD);
+        extGrid.position.y = -0.003;
+        extGrid.material.opacity = 0.3;
+        extGrid.material.transparent = true;
+        this.scene.add(extGrid);
+        this.roomMeshes.add(extGrid);
+
+        // --- Room boundary outline (thin line at floor perimeter) ---
+        const hw = roomWidth / 2;
+        const hd = roomDepth / 2;
+        const boundaryVerts = new Float32Array([
+            -hw, 0.002, -hd,   hw, 0.002, -hd,
+             hw, 0.002, -hd,   hw, 0.002,  hd,
+             hw, 0.002,  hd,  -hw, 0.002,  hd,
+            -hw, 0.002,  hd,  -hw, 0.002, -hd
+        ]);
+        const boundaryGeo = new THREE.BufferGeometry();
+        boundaryGeo.setAttribute('position', new THREE.BufferAttribute(boundaryVerts, 3));
+        const boundaryMat = new THREE.LineBasicMaterial({ color: 0x999999 });
+        const boundaryLine = new THREE.LineSegments(boundaryGeo, boundaryMat);
+        this.scene.add(boundaryLine);
+        this.roomMeshes.add(boundaryLine);
+
+        // --- Linear fog for depth (fades grid edges naturally) ---
+        const maxDimension = Math.max(roomWidth, roomDepth, roomHeight);
+        this.scene.fog = new THREE.Fog(SCENE_BACKGROUND, maxDimension * 3, maxDimension * 5);
 
         // --- Update directional light to 45° angle ---
         this.directionalLight.position.set(
