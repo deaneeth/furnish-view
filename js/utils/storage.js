@@ -471,6 +471,47 @@ function clearUserDesigns(designerName) {
     return saveRawDesigns(filtered);
 }
 
+/**
+ * Load pre-built sample designs for a user.
+ *
+ * Fetches demo-designs.json, stamps each design with the given
+ * designerName and a fresh unique ID, then saves to storage.
+ *
+ * @param {string} designerName - Username to assign ownership
+ * @returns {Promise<number>} Number of designs loaded (0 on failure)
+ */
+async function loadSampleData(designerName) {
+    if (typeof designerName !== 'string' || designerName.length === 0) {
+        return 0;
+    }
+
+    try {
+        const response = await fetch('./assets/sample-data/demo-designs.json');
+        if (!response.ok) return 0;
+
+        const samples = await response.json();
+        if (!Array.isArray(samples)) return 0;
+
+        let loaded = 0;
+        for (const sample of samples) {
+            const design = new Design({
+                ...sample,
+                id: null,            // generate fresh ID
+                designerName,
+                createdAt: new Date().toISOString()
+            });
+
+            if (saveDesign(design.toJSON())) {
+                loaded++;
+            }
+        }
+
+        return loaded;
+    } catch {
+        return 0;
+    }
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -497,6 +538,9 @@ export {
     importDesignJSON,
     countDesigns,
     clearUserDesigns,
+
+    // Sample data
+    loadSampleData,
     
     // Storage info
     getStorageUsage,

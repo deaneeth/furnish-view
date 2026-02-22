@@ -681,11 +681,20 @@ class EditorView {
         if (this.canvasContainer) this.canvasContainer.hidden = true;
         if (this.view3DContainer) this.view3DContainer.hidden = false;
 
-        // Lazy-initialise Renderer3D
+        // Lazy-initialise Renderer3D (with WebGL fallback)
         if (!this.renderer3d && this.view3DContainer) {
-            this.renderer3d = new Renderer3D({
-                container: this.view3DContainer
-            });
+            try {
+                this.renderer3d = new Renderer3D({
+                    container: this.view3DContainer
+                });
+            } catch {
+                Toast.error('3D view requires WebGL — your browser may not support it');
+                this.view3DContainer.innerHTML =
+                    '<div style="display:flex;align-items:center;justify-content:center;' +
+                    'height:100%;color:#666;font-size:1rem;text-align:center;padding:2rem;">' +
+                    '⚠️ 3D preview is unavailable.<br>Your browser does not support WebGL.</div>';
+                return;
+            }
         }
 
         // Build / rebuild the scene with the latest design data

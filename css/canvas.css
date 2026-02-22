@@ -12,11 +12,11 @@
 
 .canvas-container {
     position: relative;
-    background-color: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    background-color: #FFFFFF;
+    border: 1px solid #E8E8ED;
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08), inset 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 
 .canvas-2d,
@@ -54,10 +54,10 @@
 
 .canvas-controls {
     position: absolute;
-    top: var(--space-3);
-    right: var(--space-3);
+    top: 12px;
+    right: 12px;
     display: flex;
-    gap: var(--space-2);
+    gap: 6px;
     z-index: 10;
 }
 
@@ -65,25 +65,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    background-color: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    color: var(--text-secondary);
-    transition: all var(--transition-fast);
+    width: 32px;
+    height: 32px;
+    background: rgba(255,255,255,0.85);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid #E8E8ED;
+    border-radius: 8px;
+    color: #6E6E73;
+    transition: all 0.2s;
 }
 
 .canvas-control-btn:hover {
-    background-color: var(--bg);
-    color: var(--text);
+    background: #FFFFFF;
+    color: #1D1D1F;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .canvas-control-btn.active {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    color: var(--text-inverse);
+    background: #1D1D1F;
+    border-color: #1D1D1F;
+    color: #fff;
 }
 
 
@@ -94,9 +96,9 @@
 .view-toggle {
     display: inline-flex;
     position: relative;
-    background-color: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: #F0F0F0;
+    border: none;
+    border-radius: 980px;
     padding: 3px;
 }
 
@@ -106,10 +108,11 @@
     left: 3px;
     width: calc(50% - 3px);
     height: calc(100% - 6px);
-    background-color: var(--primary);
-    border-radius: var(--radius-sm);
-    transition: transform var(--transition);
+    background: #1D1D1F;
+    border-radius: 980px;
+    transition: transform 0.3s cubic-bezier(.22,1,.36,1);
     z-index: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
 }
 
 .view-toggle-indicator.right {
@@ -119,21 +122,23 @@
 .view-toggle-btn {
     position: relative;
     z-index: 1;
-    padding: var(--space-1) var(--space-4);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--text-secondary);
-    border-radius: var(--radius-sm);
-    transition: color var(--transition-fast);
+    padding: 5px 18px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6E6E73;
+    border-radius: 980px;
+    transition: color 0.2s;
     white-space: nowrap;
+    letter-spacing: -0.1px;
 }
 
 .view-toggle-btn:hover:not(.active) {
-    color: var(--text);
+    color: #1D1D1F;
 }
 
 .view-toggle-btn.active {
-    color: var(--text-inverse);
+    color: #fff;
 }
 
 
@@ -145,8 +150,8 @@
 
 .editor-layout {
     display: grid;
-    grid-template-columns: 220px 1fr 260px;
-    grid-template-rows: 56px 1fr 32px;
+    grid-template-columns: 200px 1fr 260px;
+    grid-template-rows: 52px 1fr 28px;
     grid-template-areas:
         "top-bar    top-bar      top-bar"
         "toolbar    canvas       sidebar"
@@ -154,6 +159,9 @@
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #FAFAF8;
 }
 
 .editor-top-bar {
@@ -161,10 +169,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 var(--space-4);
-    background-color: var(--surface);
-    border-bottom: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
+    padding: 0 20px;
+    background: rgba(255, 255, 255, 0.82);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid #E8E8ED;
     z-index: var(--z-sticky);
 }
 
@@ -177,40 +186,43 @@
     flex: 1;
     display: flex;
     justify-content: center;
-    padding: 0 var(--space-4);
+    padding: 0 16px;
 }
 
 .editor-design-name {
-    font-size: var(--text-base);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
     font-weight: 600;
     text-align: center;
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    padding: var(--space-1) var(--space-3);
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+    padding: 5px 12px;
     background: transparent;
-    color: var(--text);
+    color: #1D1D1F;
     max-width: 300px;
-    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    letter-spacing: -0.2px;
+    transition: border-color 0.2s, background 0.2s;
 }
 
 .editor-design-name:hover {
-    background-color: var(--bg);
+    background: #F5F5F7;
 }
 
 .editor-design-name:focus {
     outline: none;
-    border-color: var(--primary);
-    background-color: var(--surface);
+    border-color: #B8864E;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(184,134,78,0.12);
 }
 
 .editor-top-right {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: 10px;
 }
 
 .editor-back-btn .btn-icon {
-    margin-right: var(--space-1);
+    margin-right: 4px;
 }
 
 .editor-main-content {
@@ -220,8 +232,8 @@
 .editor-toolbar {
     grid-area: toolbar;
     width: 100%;
-    background-color: var(--surface);
-    border-right: 1px solid var(--border);
+    background: #FFFFFF;
+    border-right: 1px solid #E8E8ED;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -229,11 +241,11 @@
 
 .editor-canvas-area {
     grid-area: canvas;
-    padding: var(--space-4);
+    padding: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg);
+    background: #F5F5F7;
     overflow: hidden;
 }
 
@@ -250,23 +262,23 @@
     position: relative;
     width: 100%;
     height: 100%;
-    background-color: var(--bg);
+    background: #F5F5F7;
 }
 
 /* Disabled furniture grid state (active during 3D view) */
 .toolbar-furniture-grid.disabled,
 .toolbar-section-title.disabled {
     pointer-events: none;
-    opacity: 0.45;
-    filter: grayscale(0.3);
-    transition: opacity var(--transition-fast), filter var(--transition-fast);
+    opacity: 0.4;
+    filter: grayscale(0.4);
+    transition: opacity 0.2s, filter 0.2s;
 }
 
 .editor-sidebar {
     grid-area: sidebar;
     width: 100%;
-    background-color: var(--surface);
-    border-left: 1px solid var(--border);
+    background: #FFFFFF;
+    border-left: 1px solid #E8E8ED;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -277,11 +289,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 var(--space-4);
-    background-color: var(--surface);
-    border-top: 1px solid var(--border);
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
+    padding: 0 16px;
+    background: #FFFFFF;
+    border-top: 1px solid #E8E8ED;
+    font-size: 11px;
+    color: #A1A1A6;
+    letter-spacing: -0.1px;
 }
 
 .status-left,
@@ -289,7 +302,7 @@
 .status-right {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: 12px;
 }
 
 .status-center {
@@ -303,7 +316,7 @@
 .status-item {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 6px;
 }
 
 /* Legacy flex container fallback */
@@ -398,23 +411,23 @@
 .save-status {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 980px;
     white-space: nowrap;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    transition: color 0.2s, background 0.2s;
 }
 
 .save-status-saved {
-    color: var(--success);
-    background-color: rgba(16, 185, 129, 0.08);
+    color: #34C759;
+    background: rgba(52, 199, 89, 0.1);
 }
 
 .save-status-unsaved {
-    color: var(--warning);
-    background-color: rgba(245, 158, 11, 0.08);
+    color: #FF9500;
+    background: rgba(255, 149, 0, 0.1);
 }
 
 /* ==========================================================================

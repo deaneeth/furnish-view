@@ -1866,10 +1866,9 @@ class Renderer2D {
     /**
      * BOUNDARY CLAMPING: Ensure Furniture Position is Within Room
      * 
-     * ALGORITHM:
-     * Given a furniture item, clamp its position so it stays within room boundaries:
-     * - item.x = max(0, min(item.x, room.width - item.width))
-     * - item.y = max(0, min(item.y, room.depth - item.depth))
+     * Clamps furniture position within the room bounding rectangle, then
+     * for L-shaped rooms additionally pushes furniture out of the cutout
+     * region (bottom-right 40% × 40%) via the axis requiring least displacement.
      * 
      * @param {Object} item - Furniture item with x, y, width, depth properties
      * @returns {Object} Clamped position { x, y }
@@ -1879,9 +1878,45 @@ class Renderer2D {
             return { x: item?.x || 0, y: item?.y || 0 };
         }
         
-        const clampedX = Math.max(0, Math.min(item.x, this.room.width - item.width));
-        const clampedY = Math.max(0, Math.min(item.y, this.room.depth - item.depth));
-        
+        const w = this.room.width;
+        const d = this.room.depth;
+
+        let clampedX = Math.max(0, Math.min(item.x, w - item.width));
+        let clampedY = Math.max(0, Math.min(item.y, d - item.depth));
+
+        // L-shaped rooms: prevent furniture in the cutout region
+        if (this.room.shape === 'l-shaped') {
+            const cutW = w * 0.4;   // cutout width  (matches _drawLShapedRoom)
+            const cutD = d * 0.4;   // cutout depth
+
+            const cutLeft = w - cutW;   // x where cutout starts
+            const cutTop  = d - cutD;   // y where cutout starts
+
+            // Furniture right/bottom edges
+            const itemRight  = clampedX + item.width;
+            const itemBottom = clampedY + item.depth;
+
+            // Check if the furniture rectangle overlaps the cutout rectangle
+            const overlapsX = itemRight  > cutLeft && clampedX < w;
+            const overlapsY = itemBottom > cutTop  && clampedY < d;
+
+            if (overlapsX && overlapsY) {
+                // Push out via the axis that requires least displacement
+                const pushLeft = itemRight - cutLeft;
+                const pushUp   = itemBottom - cutTop;
+
+                if (pushLeft <= pushUp) {
+                    clampedX = cutLeft - item.width;
+                } else {
+                    clampedY = cutTop - item.depth;
+                }
+
+                // Re-clamp in case the push went past the opposite wall
+                clampedX = Math.max(0, clampedX);
+                clampedY = Math.max(0, clampedY);
+            }
+        }
+
         return { x: clampedX, y: clampedY };
     }
     
@@ -1895,10 +1930,23 @@ class Renderer2D {
     isWithinRoom(worldX, worldY) {
         if (!this.room) return false;
         
-        return worldX >= 0 && 
+        const inBounds = worldX >= 0 && 
                worldX <= this.room.width && 
                worldY >= 0 && 
                worldY <= this.room.depth;
+
+        if (!inBounds) return false;
+
+        // L-shaped rooms: exclude the cutout region
+        if (this.room.shape === 'l-shaped') {
+            const cutLeft = this.room.width * 0.6;
+            const cutTop  = this.room.depth * 0.6;
+            if (worldX > cutLeft && worldY > cutTop) {
+                return false;
+            }
+        }
+
+        return true;
     }
     
     /**

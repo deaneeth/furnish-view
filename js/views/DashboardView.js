@@ -16,6 +16,7 @@
 
 import { Modal } from './components/Modal.js';
 import { Toast } from './components/Toast.js';
+import { loadSampleData, getAllDesigns } from '../utils/storage.js';
 
 /** Thumbnail canvas dimensions in pixels */
 const THUMB_WIDTH = 400;
@@ -171,6 +172,7 @@ class DashboardView {
                         <h2 class="dashboard-title">My Designs</h2>
                         <div class="dashboard-action-row">
                             ${hasDesigns ? `<span class="dashboard-design-count">${designCountText}</span>` : ''}
+                            ${!hasDesigns ? `<button type="button" id="load-samples-btn" class="btn btn-secondary">Load Sample Designs</button>` : ''}
                             <button type="button" id="compare-btn" class="btn btn-secondary" ${canCompare ? '' : 'disabled'}>
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                     <path d="M2 4h5M2 8h5M2 12h5M9 4h5M9 8h5M9 12h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -349,6 +351,7 @@ class DashboardView {
         
         const roomW = room.width;
         const roomD = room.depth;
+        const isLShaped = room.shape === 'l-shaped';
         
         // Calculate scale to fit room inside thumbnail with padding
         const padX = THUMB_WIDTH * THUMB_PADDING;
@@ -363,51 +366,261 @@ class DashboardView {
         const offsetX = (THUMB_WIDTH - drawW) / 2;
         const offsetY = (THUMB_HEIGHT - drawH) / 2;
         
-        // 1. Background
+        // --- 1. Background ---
         ctx.fillStyle = THUMB_DEFAULTS.GRID;
         ctx.fillRect(0, 0, THUMB_WIDTH, THUMB_HEIGHT);
         
-        // 2. Floor
-        ctx.fillStyle = room.floorColour || THUMB_DEFAULTS.FLOOR;
-        ctx.fillRect(offsetX, offsetY, drawW, drawH);
+        // --- 2. Floor ---
+        const floorColour = room.floorColour || THUMB_DEFAULTS.FLOOR;
+        ctx.fillStyle = floorColour;
+
+        if (isLShaped) {
+            const cutW = roomW * 0.4 * scale;
+            const cutD = roomD * 0.4 * scale;
+            ctx.beginPath();
+            ctx.moveTo(offsetX, offsetY);
+            ctx.lineTo(offsetX + drawW, offsetY);
+            ctx.lineTo(offsetX + drawW, offsetY + drawH - cutD);
+            ctx.lineTo(offsetX + drawW - cutW, offsetY + drawH - cutD);
+            ctx.lineTo(offsetX + drawW - cutW, offsetY + drawH);
+            ctx.lineTo(offsetX, offsetY + drawH);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            ctx.fillRect(offsetX, offsetY, drawW, drawH);
+        }
+
+        // --- 3. Subtle floor grid ---
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.lineWidth = 0.5;
+        const gridStep = 1 * scale; // 1m grid
+        for (let gx = gridStep; gx < drawW; gx += gridStep) {
+            ctx.beginPath();
+            ctx.moveTo(offsetX + gx, offsetY);
+            ctx.lineTo(offsetX + gx, offsetY + drawH);
+            ctx.stroke();
+        }
+        for (let gy = gridStep; gy < drawH; gy += gridStep) {
+            ctx.beginPath();
+            ctx.moveTo(offsetX, offsetY + gy);
+            ctx.lineTo(offsetX + drawW, offsetY + gy);
+            ctx.stroke();
+        }
         
-        // 3. Wall outline
-        ctx.strokeStyle = room.wallColour || THUMB_DEFAULTS.WALL;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(offsetX, offsetY, drawW, drawH);
-        
-        // 4. Furniture items
+        // --- 4. Wall outline ---
+        const wallColour = room.wallColour || THUMB_DEFAULTS.WALL;
+        ctx.strokeStyle = wallColour;
+        ctx.lineWidth = 3;
+
+        if (isLShaped) {
+            const cutW = roomW * 0.4 * scale;
+            const cutD = roomD * 0.4 * scale;
+            ctx.beginPath();
+            ctx.moveTo(offsetX, offsetY);
+            ctx.lineTo(offsetX + drawW, offsetY);
+            ctx.lineTo(offsetX + drawW, offsetY + drawH - cutD);
+            ctx.lineTo(offsetX + drawW - cutW, offsetY + drawH - cutD);
+            ctx.lineTo(offsetX + drawW - cutW, offsetY + drawH);
+            ctx.lineTo(offsetX, offsetY + drawH);
+            ctx.closePath();
+            ctx.stroke();
+        } else {
+            ctx.strokeRect(offsetX, offsetY, drawW, drawH);
+        }
+
+        // --- 5. Furniture items ---
         const furniture = Array.isArray(design.furniture) ? design.furniture : [];
         for (const item of furniture) {
             if (!item) continue;
             
-            const fx = item.x || 0;
-            const fy = item.y || 0;
-            const fw = item.width || 0.6;
-            const fd = item.depth || 0.6;
+            const fx = (item.x || 0) * scale;
+            const fy = (item.y || 0) * scale;
+            const fw = (item.width || 0.6) * scale;
+            const fd = (item.depth || 0.6) * scale;
+            const colour = item.colour || THUMB_DEFAULTS.FURNITURE;
+            const type = item.type || '';
             
-            const cx = offsetX + fx * scale;
-            const cy = offsetY + fy * scale;
-            const cw = fw * scale;
-            const cd = fd * scale;
-            
-            // Save context for rotation
             ctx.save();
             
+            // Handle rotation
             if (item.rotation && item.rotation !== 0) {
-                const centerX = cx + cw / 2;
-                const centerY = cy + cd / 2;
+                const centerX = offsetX + fx + fw / 2;
+                const centerY = offsetY + fy + fd / 2;
                 ctx.translate(centerX, centerY);
                 ctx.rotate((item.rotation * Math.PI) / 180);
                 ctx.translate(-centerX, -centerY);
             }
             
-            // Filled rectangle with subtle border
-            ctx.fillStyle = item.colour || THUMB_DEFAULTS.FURNITURE;
-            ctx.fillRect(cx, cy, cw, cd);
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+            const x = offsetX + fx;
+            const y = offsetY + fy;
+            const r = Math.min(3, Math.min(fw, fd) * 0.15); // corner radius
+
+            // Drop shadow
+            if (type !== 'rug') {
+                ctx.shadowColor = 'rgba(0,0,0,0.18)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 1;
+                ctx.shadowOffsetY = 2;
+            }
+            
+            // Base shape — rounded rectangle
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + fw - r, y);
+            ctx.arcTo(x + fw, y, x + fw, y + r, r);
+            ctx.lineTo(x + fw, y + fd - r);
+            ctx.arcTo(x + fw, y + fd, x + fw - r, y + fd, r);
+            ctx.lineTo(x + r, y + fd);
+            ctx.arcTo(x, y + fd, x, y + fd - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+
+            ctx.fillStyle = colour;
+            ctx.fill();
+
+            // Reset shadow before drawing details
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            
+            // --- Type-specific interior details ---
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
             ctx.lineWidth = 1;
-            ctx.strokeRect(cx, cy, cw, cd);
+
+            if (type === 'bed') {
+                // Pillow area at top (~25%)
+                const pillowH = fd * 0.22;
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + fw - r, y);
+                ctx.arcTo(x + fw, y, x + fw, y + r, r);
+                ctx.lineTo(x + fw, y + pillowH);
+                ctx.lineTo(x, y + pillowH);
+                ctx.lineTo(x, y + r);
+                ctx.arcTo(x, y, x + r, y, r);
+                ctx.closePath();
+                ctx.fill();
+                // Pillow line
+                ctx.beginPath();
+                ctx.moveTo(x + 2, y + pillowH);
+                ctx.lineTo(x + fw - 2, y + pillowH);
+                ctx.stroke();
+                // Duvet fold
+                ctx.beginPath();
+                ctx.moveTo(x + fw * 0.35, y + pillowH + 4);
+                ctx.lineTo(x + fw * 0.35, y + fd - 4);
+                ctx.stroke();
+
+            } else if (type === 'sofa') {
+                // Back cushion strip
+                const backH = fd * 0.25;
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.fillRect(x + 2, y + 2, fw - 4, backH);
+                // Seat cushion dividers
+                const cushions = Math.max(2, Math.round(fw / (0.6 * scale)));
+                const cw = (fw - 4) / cushions;
+                ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+                for (let i = 1; i < cushions; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + 2 + i * cw, y + backH + 2);
+                    ctx.lineTo(x + 2 + i * cw, y + fd - 2);
+                    ctx.stroke();
+                }
+
+            } else if (type === 'armchair') {
+                // Back cushion
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.fillRect(x + 2, y + 2, fw - 4, fd * 0.25);
+                // Arm rests
+                ctx.fillStyle = 'rgba(0,0,0,0.08)';
+                ctx.fillRect(x + 1, y + 1, fw * 0.15, fd - 2);
+                ctx.fillRect(x + fw - fw * 0.15 - 1, y + 1, fw * 0.15, fd - 2);
+
+            } else if (type === 'chair') {
+                // Circular seat
+                ctx.beginPath();
+                ctx.arc(x + fw / 2, y + fd / 2, Math.min(fw, fd) * 0.35, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+                ctx.stroke();
+
+            } else if (type === 'dining-table' || type === 'coffee-table' || type === 'side-table') {
+                // Inset rectangle (tabletop edge)
+                const inset = Math.max(2, Math.min(fw, fd) * 0.12);
+                ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + inset, y + inset, fw - 2 * inset, fd - 2 * inset);
+
+            } else if (type === 'desk') {
+                // Tabletop inset
+                const inset = Math.max(2, Math.min(fw, fd) * 0.1);
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.strokeRect(x + inset, y + inset, fw - 2 * inset, fd - 2 * inset);
+                // Drawer pull
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                const pullW = fw * 0.2;
+                ctx.fillRect(x + (fw - pullW) / 2, y + fd - inset - 2, pullW, 2);
+
+            } else if (type === 'bookshelf') {
+                // Horizontal shelf lines
+                const shelves = Math.max(2, Math.round(fd / (0.35 * scale)));
+                const gap = fd / (shelves + 1);
+                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                for (let s = 1; s <= shelves; s++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + 2, y + gap * s);
+                    ctx.lineTo(x + fw - 2, y + gap * s);
+                    ctx.stroke();
+                }
+
+            } else if (type === 'wardrobe') {
+                // Centre door line
+                ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+                ctx.beginPath();
+                ctx.moveTo(x + fw / 2, y + 3);
+                ctx.lineTo(x + fw / 2, y + fd - 3);
+                ctx.stroke();
+                // Door handles
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                const handleH = Math.min(6, fd * 0.15);
+                ctx.fillRect(x + fw / 2 - 4, y + fd / 2 - handleH / 2, 2, handleH);
+                ctx.fillRect(x + fw / 2 + 2, y + fd / 2 - handleH / 2, 2, handleH);
+
+            } else if (type === 'tv-stand') {
+                // Screen rectangle
+                const screenInset = Math.max(3, Math.min(fw, fd) * 0.15);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(x + screenInset, y + 2, fw - 2 * screenInset, fd * 0.45);
+
+            } else if (type === 'rug') {
+                // Border pattern
+                const bw = Math.max(2, Math.min(fw, fd) * 0.08);
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(x + bw, y + bw, fw - 2 * bw, fd - 2 * bw);
+            }
+
+            // Outer border for all non-rug items
+            if (type !== 'rug') {
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + fw - r, y);
+                ctx.arcTo(x + fw, y, x + fw, y + r, r);
+                ctx.lineTo(x + fw, y + fd - r);
+                ctx.arcTo(x + fw, y + fd, x + fw - r, y + fd, r);
+                ctx.lineTo(x + r, y + fd);
+                ctx.arcTo(x, y + fd, x, y + fd - r, r);
+                ctx.lineTo(x, y + r);
+                ctx.arcTo(x, y, x + r, y, r);
+                ctx.closePath();
+                ctx.stroke();
+            }
             
             ctx.restore();
         }
@@ -432,6 +645,10 @@ class DashboardView {
         
         const emptyNewDesignBtn = this.container.querySelector('#empty-new-design-btn');
         emptyNewDesignBtn?.addEventListener('click', () => this.onNewDesign());
+
+        // Load sample designs button
+        const loadSamplesBtn = this.container.querySelector('#load-samples-btn');
+        loadSamplesBtn?.addEventListener('click', () => this._handleLoadSamples());
         
         // Compare designs button
         const compareBtn = this.container.querySelector('#compare-btn');
@@ -480,6 +697,21 @@ class DashboardView {
         });
     }
     
+    /**
+     * Handle loading sample designs from demo data.
+     * @private
+     */
+    async _handleLoadSamples() {
+        const count = await loadSampleData(this.username);
+        if (count > 0) {
+            Toast.success(`Loaded ${count} sample design${count > 1 ? 's' : ''}`);
+            const designs = getAllDesigns(this.username);
+            this.refreshDesigns(designs);
+        } else {
+            Toast.error('Failed to load sample designs');
+        }
+    }
+
     /**
      * Refresh the design list with new data
      * @param {Array} designs - Updated designs array
