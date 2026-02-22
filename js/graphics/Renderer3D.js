@@ -724,7 +724,10 @@ class Renderer3D {
                     child.geometry.dispose();
                 }
                 if (child.material) {
-                    if (child.material.map) child.material.map.dispose();
+                    // Skip map disposal for shared textures (e.g. contact shadow)
+                    if (child.material.map && !child.material._sharedMap) {
+                        child.material.map.dispose();
+                    }
                     if (child.material.roughnessMap) child.material.roughnessMap.dispose();
                     child.material.dispose();
                 }
@@ -1049,6 +1052,12 @@ class Renderer3D {
         // Dispose room and furniture meshes
         this._clearRoomMeshes();
         this._clearFurnitureMeshes();
+
+        // Dispose shared contact shadow texture (cached across furniture pieces)
+        if (FurnitureFactory3D._contactShadowTexture) {
+            FurnitureFactory3D._contactShadowTexture.dispose();
+            FurnitureFactory3D._contactShadowTexture = null;
+        }
 
         // Dispose lights
         if (this.ambientLight) {

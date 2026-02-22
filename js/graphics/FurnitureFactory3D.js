@@ -34,7 +34,16 @@ import * as THREE from '../../lib/three.module.js';
 export default class FurnitureFactory3D {
 
     /**
+     * Cached contact shadow texture — generated once, reused for all pieces.
+     * @type {THREE.CanvasTexture|null}
+     * @private
+     */
+    static _contactShadowTexture = null;
+
+    /**
      * Main factory method — dispatches to the correct builder based on type.
+     * After building, adds a contact shadow disc beneath the furniture
+     * to ground it visually (skipped for rugs which lie flat on the floor).
      *
      * @param {string} type - Furniture type ID from the catalogue (e.g. 'chair', 'dining-table')
      * @param {Object} dimensions - Item dimensions in meters
@@ -51,34 +60,110 @@ export default class FurnitureFactory3D {
             height: dimensions.height || 0.85
         };
 
+        let group;
         switch (type) {
             case 'chair':
-                return FurnitureFactory3D.createChair(dims, colour);
+                group = FurnitureFactory3D.createChair(dims, colour); break;
             case 'dining-table':
-                return FurnitureFactory3D.createDiningTable(dims, colour);
+                group = FurnitureFactory3D.createDiningTable(dims, colour); break;
             case 'side-table':
-                return FurnitureFactory3D.createSideTable(dims, colour);
+                group = FurnitureFactory3D.createSideTable(dims, colour); break;
             case 'sofa':
-                return FurnitureFactory3D.createSofa(dims, colour);
+                group = FurnitureFactory3D.createSofa(dims, colour); break;
             case 'armchair':
-                return FurnitureFactory3D.createArmchair(dims, colour);
+                group = FurnitureFactory3D.createArmchair(dims, colour); break;
             case 'coffee-table':
-                return FurnitureFactory3D.createCoffeeTable(dims, colour);
+                group = FurnitureFactory3D.createCoffeeTable(dims, colour); break;
             case 'bookshelf':
-                return FurnitureFactory3D.createBookshelf(dims, colour);
+                group = FurnitureFactory3D.createBookshelf(dims, colour); break;
             case 'desk':
-                return FurnitureFactory3D.createDesk(dims, colour);
+                group = FurnitureFactory3D.createDesk(dims, colour); break;
             case 'tv-stand':
-                return FurnitureFactory3D.createTvStand(dims, colour);
+                group = FurnitureFactory3D.createTvStand(dims, colour); break;
             case 'bed':
-                return FurnitureFactory3D.createBed(dims, colour);
+                group = FurnitureFactory3D.createBed(dims, colour); break;
             case 'wardrobe':
-                return FurnitureFactory3D.createWardrobe(dims, colour);
+                group = FurnitureFactory3D.createWardrobe(dims, colour); break;
             case 'rug':
-                return FurnitureFactory3D.createRug(dims, colour);
+                group = FurnitureFactory3D.createRug(dims, colour); break;
             default:
-                return FurnitureFactory3D._createFallbackBox(dims, colour);
+                group = FurnitureFactory3D._createFallbackBox(dims, colour); break;
         }
+
+        // Add contact shadow disc (skip for rugs — they're flat on the floor)
+        if (type !== 'rug') {
+            const scale = type === 'bed' ? 1.15 : 1.1;
+            const shadow = FurnitureFactory3D._createContactShadow(
+                dims.width * scale, dims.depth * scale
+            );
+            group.add(shadow);
+        }
+
+        return group;
+    }
+
+    /**
+     * Create a contact shadow disc — a semi-transparent dark oval placed
+     * at floor level beneath furniture to ground it visually.
+     *
+     * Uses MeshBasicMaterial (not MeshStandardMaterial) because the shadow
+     * itself should not respond to scene lighting. MultiplyBlending makes
+     * the dark gradient blend naturally with whatever floor colour is beneath.
+     *
+     * The texture is an elliptical radial gradient (stretched in depth to
+     * simulate light coming from above-front) and is cached for reuse.
+     *
+     * @param {number} width - Shadow width in meters
+     * @param {number} depth - Shadow depth in meters
+     * @returns {THREE.Mesh} Shadow plane mesh
+     * @private
+     */
+    static _createContactShadow(width, depth) {
+        // Generate and cache the gradient texture on first call
+        if (!FurnitureFactory3D._contactShadowTexture) {
+            const SIZE = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = SIZE;
+            canvas.height = SIZE;
+            const ctx = canvas.getContext('2d');
+
+            // Elliptical stretch — elongates shadow toward the back
+            ctx.save();
+            ctx.translate(SIZE / 2, SIZE / 2);
+            ctx.scale(1, 0.75);
+            ctx.translate(-SIZE / 2, -SIZE / 2);
+
+            const gradient = ctx.createRadialGradient(
+                SIZE / 2, SIZE / 2, 0,
+                SIZE / 2, SIZE / 2, SIZE / 2
+            );
+            gradient.addColorStop(0,   'rgba(0, 0, 0, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(0, 0, 0, 0.15)');
+            gradient.addColorStop(1,   'rgba(0, 0, 0, 0)');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, SIZE, SIZE);
+            ctx.restore();
+
+            FurnitureFactory3D._contactShadowTexture = new THREE.CanvasTexture(canvas);
+        }
+
+        const geometry = new THREE.PlaneGeometry(width, depth);
+        const material = new THREE.MeshBasicMaterial({
+            map: FurnitureFactory3D._contactShadowTexture,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false
+        });
+        material._sharedMap = true; // prevent per-furniture disposal of cached texture
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.y = 0.003;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+
+        return mesh;
     }
 
     // ─────────────────────────────────────────────
