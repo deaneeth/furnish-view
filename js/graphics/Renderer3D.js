@@ -724,6 +724,8 @@ class Renderer3D {
                     child.geometry.dispose();
                 }
                 if (child.material) {
+                    if (child.material.map) child.material.map.dispose();
+                    if (child.material.roughnessMap) child.material.roughnessMap.dispose();
                     child.material.dispose();
                 }
             });
