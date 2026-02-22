@@ -32,8 +32,10 @@ import {
  * @type {Object}
  */
 const RENDER_COLOURS = {
-    GRID: '#E5E5E5',
+    GRID: '#D0D0D0',
+    GRID_MINOR: '#EDEDED',
     GRID_LABEL: '#999999',
+    ROOM_BOUNDARY: '#333333',
     SELECTION: '#3B82F6',
     SELECTION_HANDLE: '#3B82F6',
     ROTATION_HANDLE: '#2563EB',
@@ -42,7 +44,9 @@ const RENDER_COLOURS = {
     FURNITURE_BORDER: 'rgba(0, 0, 0, 0.3)',
     FURNITURE_LABEL: '#FFFFFF',
     DIMENSION_LABEL: '#666666',
-    CANVAS_BG: '#FAFAFA'
+    CANVAS_BG: '#F0F0F0',
+    EMPTY_STATE: '#AAAAAA',
+    SCALE_INDICATOR: '#BBBBBB'
 };
 
 /**
@@ -299,6 +303,52 @@ class Renderer2D {
     }
     
     /**
+     * Draw empty state guidance when no furniture is placed.
+     * Nielsen H10: Help and Documentation — contextual, not intrusive.
+     *
+     * @private
+     */
+    _drawEmptyState() {
+        if (!this.ctx || !this.room) return;
+        
+        const ctx = this.ctx;
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        
+        ctx.save();
+        ctx.font = 'italic 14px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = RENDER_COLOURS.EMPTY_STATE;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+            'Click a furniture item from the toolbar, then click here to place it',
+            centerX, centerY
+        );
+        ctx.restore();
+    }
+    
+    /**
+     * Draw scale indicator in the bottom-right corner of the canvas.
+     * Shows the current mapping between 1 meter and canvas pixels.
+     *
+     * @private
+     */
+    _drawScaleIndicator() {
+        if (!this.ctx || !this.scaleFactor) return;
+        
+        const ctx = this.ctx;
+        const px = Math.round(this.scaleFactor);
+        
+        ctx.save();
+        ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = RENDER_COLOURS.SCALE_INDICATOR;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`Scale: 1m = ${px}px`, this.width - 10, this.height - 6);
+        ctx.restore();
+    }
+    
+    /**
      * Main render method - draws the complete scene.
      * 
      * RENDER LOOP ORDER:
@@ -359,6 +409,14 @@ class Renderer2D {
         if (this.ghostPreview) {
             this._drawGhostPreview();
         }
+        
+        // Step 7: Empty state guidance (H10 — contextual help)
+        if (!this.furniture || this.furniture.length === 0) {
+            this._drawEmptyState();
+        }
+        
+        // Step 8: Scale indicator (bottom-right corner)
+        this._drawScaleIndicator();
     }
     
     /**
@@ -377,17 +435,36 @@ class Renderer2D {
         const roomWidth = this.room.width;
         const roomDepth = this.room.depth;
         
-        // Get room corners in canvas coordinates
-        const topLeft = this.worldToCanvas(0, 0);
-        const bottomRight = this.worldToCanvas(roomWidth, roomDepth);
-        
         ctx.save();
+        
+        // --- Minor grid lines (0.5m intervals) ---
+        ctx.strokeStyle = RENDER_COLOURS.GRID_MINOR;
+        ctx.lineWidth = 0.5;
+        
+        for (let x = 0.5; x < roomWidth; x += 1) {
+            const pos = this.worldToCanvas(x, 0);
+            const endPos = this.worldToCanvas(x, roomDepth);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.lineTo(endPos.x, endPos.y);
+            ctx.stroke();
+        }
+        for (let y = 0.5; y < roomDepth; y += 1) {
+            const pos = this.worldToCanvas(0, y);
+            const endPos = this.worldToCanvas(roomWidth, y);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.lineTo(endPos.x, endPos.y);
+            ctx.stroke();
+        }
+        
+        // --- Major grid lines (1m intervals) ---
         ctx.strokeStyle = RENDER_COLOURS.GRID;
         ctx.lineWidth = RENDER_CONFIG.GRID_LINE_WIDTH;
-        ctx.font = `${RENDER_CONFIG.DIMENSION_FONT_SIZE}px sans-serif`;
+        ctx.font = '10px sans-serif';
         ctx.fillStyle = RENDER_COLOURS.GRID_LABEL;
         
-        // Draw vertical lines (X-axis)
+        // Vertical lines (X-axis)
         for (let x = 0; x <= roomWidth; x++) {
             const pos = this.worldToCanvas(x, 0);
             const endPos = this.worldToCanvas(x, roomDepth);
@@ -397,13 +474,11 @@ class Renderer2D {
             ctx.lineTo(endPos.x, endPos.y);
             ctx.stroke();
             
-            // Draw label at top
-            if (x % 1 === 0) {
-                ctx.fillText(`${x}m`, pos.x - 8, pos.y - 8);
-            }
+            // Label at top (outside room boundary)
+            ctx.fillText(`${x}m`, pos.x - 8, pos.y - 8);
         }
         
-        // Draw horizontal lines (Y-axis / depth)
+        // Horizontal lines (Y-axis / depth)
         for (let y = 0; y <= roomDepth; y++) {
             const pos = this.worldToCanvas(0, y);
             const endPos = this.worldToCanvas(roomWidth, y);
@@ -413,10 +488,8 @@ class Renderer2D {
             ctx.lineTo(endPos.x, endPos.y);
             ctx.stroke();
             
-            // Draw label on left
-            if (y % 1 === 0) {
-                ctx.fillText(`${y}m`, pos.x - 24, pos.y + 4);
-            }
+            // Label on left (outside room boundary)
+            ctx.fillText(`${y}m`, pos.x - 24, pos.y + 4);
         }
         
         ctx.restore();
@@ -616,9 +689,9 @@ class Renderer2D {
         ctx.fillStyle = this.room.floorColour || '#8B7355';
         ctx.fillRect(topLeft.x, topLeft.y, scaledWidth, scaledDepth);
         
-        // Draw wall outline
-        ctx.strokeStyle = this.room.wallColour || '#E8E0D4';
-        ctx.lineWidth = RENDER_CONFIG.WALL_LINE_WIDTH;
+        // Draw room boundary — distinct from grid lines
+        ctx.strokeStyle = RENDER_COLOURS.ROOM_BOUNDARY;
+        ctx.lineWidth = 2;
         ctx.strokeRect(topLeft.x, topLeft.y, scaledWidth, scaledDepth);
     }
     
