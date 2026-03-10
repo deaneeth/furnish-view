@@ -1,0 +1,49 @@
+[
+  {
+    "id": "sample-living-room",
+    "name": "Modern Living Room",
+    "designerName": "",
+    "createdAt": "2025-01-15T10:00:00.000Z",
+    "updatedAt": "2025-01-15T10:00:00.000Z",
+    "room": {
+      "width": 6,
+      "depth": 5,
+      "height": 2.8,
+      "shape": "rectangular",
+      "wallColour": "#E8E0D4",
+      "floorColour": "#8B7355"
+    },
+    "furniture": [
+      { "id": "s1", "type": "sofa",         "x": 0.5, "y": 3.5, "width": 2.0, "depth": 0.9, "height": 0.85, "colour": "#4A6741", "rotation": 0 },
+      { "id": "s2", "type": "coffee-table",  "x": 1.2, "y": 2.3, "width": 1.0, "depth": 0.6, "height": 0.45, "colour": "#6B4226", "rotation": 0 },
+      { "id": "s3", "type": "armchair",      "x": 3.5, "y": 3.2, "width": 0.8, "depth": 0.8, "height": 0.85, "colour": "#8B6914", "rotation": -30 },
+      { "id": "s4", "type": "tv-stand",      "x": 1.0, "y": 0.2, "width": 1.6, "depth": 0.45,"height": 0.5,  "colour": "#3E2723", "rotation": 0 },
+      { "id": "s5", "type": "bookshelf",     "x": 4.5, "y": 0.2, "width": 0.9, "depth": 0.35,"height": 1.8,  "colour": "#5D4037", "rotation": 0 },
+      { "id": "s6", "type": "rug",           "x": 0.8, "y": 1.8, "width": 2.5, "depth": 1.8, "height": 0.02, "colour": "#B8860B", "rotation": 0 },
+      { "id": "s7", "type": "side-table",    "x": 0.0, "y": 2.8, "width": 0.5, "depth": 0.5, "height": 0.55, "colour": "#6B4226", "rotation": 0 }
+    ]
+  },
+  {
+    "id": "sample-bedroom",
+    "name": "Cosy Bedroom",
+    "designerName": "",
+    "createdAt": "2025-01-16T14:30:00.000Z",
+    "updatedAt": "2025-01-16T14:30:00.000Z",
+    "room": {
+      "width": 5,
+      "depth": 4,
+      "height": 2.6,
+      "shape": "rectangular",
+      "wallColour": "#D4C5B2",
+      "floorColour": "#A0886C"
+    },
+    "furniture": [
+      { "id": "b1", "type": "bed",       "x": 1.2, "y": 0.2, "width": 1.6, "depth": 2.0, "height": 0.55, "colour": "#F5F5DC", "rotation": 0 },
+      { "id": "b2", "type": "wardrobe",  "x": 3.8, "y": 0.3, "width": 1.0, "depth": 0.6, "height": 2.0,  "colour": "#5D4037", "rotation": 0 },
+      { "id": "b3", "type": "side-table","x": 0.2, "y": 0.5, "width": 0.5, "depth": 0.5, "height": 0.55, "colour": "#6B4226", "rotation": 0 },
+      { "id": "b4", "type": "desk",      "x": 0.3, "y": 2.8, "width": 1.2, "depth": 0.6, "height": 0.75, "colour": "#8B7355", "rotation": 0 },
+      { "id": "b5", "type": "chair",     "x": 0.6, "y": 3.5, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#4682B4", "rotation": 0 },
+      { "id": "b6", "type": "rug",       "x": 1.0, "y": 1.0, "width": 2.0, "depth": 1.5, "height": 0.02, "colour": "#CD853F", "rotation": 0 }
+    ]
+  }
+]

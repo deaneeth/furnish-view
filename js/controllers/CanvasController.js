@@ -12,6 +12,7 @@
 import { FurnitureItem } from '../models/FurnitureItem.js';
 import { Design } from '../models/Design.js';
 import { getFurnitureByType } from '../data/furnitureCatalogue.js';
+import { Toast } from '../views/components/Toast.js';
 
 /**
  * Maximum number of undo states to store
@@ -319,9 +320,19 @@ class CanvasController {
         });
         
         // Snap to grid if enabled
-        const finalPos = this.snapToGrid
+        let finalPos = this.snapToGrid
             ? this._snapPosition(clampedPos.x, clampedPos.y)
             : clampedPos;
+
+        // Re-clamp after snap — rounding can push position past boundary
+        if (this.snapToGrid) {
+            finalPos = this.renderer.clampToRoom({
+                x: finalPos.x,
+                y: finalPos.y,
+                width: this.selectedItem.width,
+                depth: this.selectedItem.depth
+            });
+        }
         
         // Update item position
         this.selectedItem.setPosition(finalPos.x, finalPos.y);
@@ -420,7 +431,19 @@ class CanvasController {
         });
         
         // Clamp to room boundary
-        const clampedPos = this.renderer.clampToRoom(newItem);
+        let clampedPos = this.renderer.clampToRoom(newItem);
+
+        // Snap placement position to grid, then re-clamp after rounding
+        if (this.snapToGrid) {
+            const snapped = this._snapPosition(clampedPos.x, clampedPos.y);
+            clampedPos = this.renderer.clampToRoom({
+                x: snapped.x,
+                y: snapped.y,
+                width: newItem.width,
+                depth: newItem.depth
+            });
+        }
+
         newItem.setPosition(clampedPos.x, clampedPos.y);
         
         // Add to design
@@ -434,6 +457,9 @@ class CanvasController {
         
         // Notify changes
         this.onDesignChange();
+
+        // Feedback: furniture placed (Nielsen H1 — Visibility of System Status)
+        this._notifyPlaced(furnitureDef.label || furnitureDef.type);
         
         // Re-render
         this._render();
@@ -795,6 +821,18 @@ class CanvasController {
     toggleSnapToGrid() {
         this.snapToGrid = !this.snapToGrid;
         return this.snapToGrid;
+    }
+
+    /**
+     * Show a toast notification when furniture is placed.
+     * @param {string} label - Furniture type label
+     * @private
+     */
+    _notifyPlaced(label) {
+        const name = label
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+        Toast.success(`${name} placed`);
     }
 }
 
