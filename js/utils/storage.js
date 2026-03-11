@@ -699,6 +699,134 @@ async function loadSampleData(designerName) {
 }
 
 // ============================================================================
+// CART MANAGEMENT
+// ============================================================================
+
+/**
+ * Get the full cart array for a user.
+ * Each item is `{ type: string, quantity: number, price: number }`.
+ * @param {string} username - Username whose cart to retrieve
+ * @returns {Array<{type: string, quantity: number, price: number}>} Cart items array
+ */
+function getCart(username) {
+    if (typeof username !== 'string' || username.trim().length === 0) return [];
+
+    const allCarts = safeJSONParse(safeGetItem(STORAGE_KEYS.cart), {});
+    const key = username.trim().toLowerCase();
+    const userCart = allCarts[key];
+    return Array.isArray(userCart) ? userCart : [];
+}
+
+/**
+ * Persist the full cart array for a user (internal helper).
+ * @param {string} username - Username
+ * @param {Array} cart - Cart items array
+ * @returns {boolean} True if saved successfully
+ * @private
+ */
+function saveCart(username, cart) {
+    const allCarts = safeJSONParse(safeGetItem(STORAGE_KEYS.cart), {});
+    const key = username.trim().toLowerCase();
+    allCarts[key] = cart;
+    return safeSetItem(STORAGE_KEYS.cart, JSON.stringify(allCarts));
+}
+
+/**
+ * Add an item to the user's cart or increment its quantity.
+ * @param {string} username - Username
+ * @param {string} furnitureType - Furniture type ID
+ * @param {number} quantity - Quantity to add (default 1)
+ * @param {number} price - Unit price of the item
+ * @returns {boolean} True if cart updated successfully
+ */
+function addToCart(username, furnitureType, quantity = 1, price = 0) {
+    if (typeof username !== 'string' || username.trim().length === 0) return false;
+    if (typeof furnitureType !== 'string' || furnitureType.trim().length === 0) return false;
+    if (typeof quantity !== 'number' || quantity < 1) return false;
+
+    const cart = getCart(username);
+    const existing = cart.find(item => item.type === furnitureType);
+
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        cart.push({ type: furnitureType, quantity, price: Number(price) || 0 });
+    }
+
+    return saveCart(username, cart);
+}
+
+/**
+ * Remove an item entirely from the user's cart.
+ * @param {string} username - Username
+ * @param {string} furnitureType - Furniture type ID to remove
+ * @returns {boolean} True if item was found and removed
+ */
+function removeFromCart(username, furnitureType) {
+    if (typeof username !== 'string' || username.trim().length === 0) return false;
+
+    const cart = getCart(username);
+    const initial = cart.length;
+    const filtered = cart.filter(item => item.type !== furnitureType);
+
+    if (filtered.length === initial) return false;
+    return saveCart(username, filtered);
+}
+
+/**
+ * Update the quantity of an item in the cart.
+ * If quantity is 0 or less, removes the item.
+ * @param {string} username - Username
+ * @param {string} furnitureType - Furniture type ID
+ * @param {number} quantity - New quantity
+ * @returns {boolean} True if updated successfully
+ */
+function updateCartQuantity(username, furnitureType, quantity) {
+    if (typeof username !== 'string' || username.trim().length === 0) return false;
+
+    if (typeof quantity !== 'number' || quantity <= 0) {
+        return removeFromCart(username, furnitureType);
+    }
+
+    const cart = getCart(username);
+    const item = cart.find(i => i.type === furnitureType);
+    if (!item) return false;
+
+    item.quantity = quantity;
+    return saveCart(username, cart);
+}
+
+/**
+ * Clear all items from a user's cart.
+ * @param {string} username - Username
+ * @returns {boolean} True if cleared successfully
+ */
+function clearCart(username) {
+    if (typeof username !== 'string' || username.trim().length === 0) return false;
+    return saveCart(username, []);
+}
+
+/**
+ * Get the total price of all items in the user's cart.
+ * @param {string} username - Username
+ * @returns {number} Total price (sum of price × quantity for each item)
+ */
+function getCartTotal(username) {
+    const cart = getCart(username);
+    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+}
+
+/**
+ * Get the total number of items (sum of quantities) in the user's cart.
+ * @param {string} username - Username
+ * @returns {number} Total item count
+ */
+function getCartCount(username) {
+    const cart = getCart(username);
+    return cart.reduce((count, item) => count + item.quantity, 0);
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -734,7 +862,16 @@ export {
     // Storage info
     getStorageUsage,
     isStorageNearCapacity,
-    
+
+    // Cart management
+    getCart,
+    addToCart,
+    removeFromCart,
+    updateCartQuantity,
+    clearCart,
+    getCartTotal,
+    getCartCount,
+
     // Constants (re-exported for convenience)
     MAX_DESIGNS_PER_USER
 };

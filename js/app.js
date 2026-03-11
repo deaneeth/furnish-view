@@ -13,11 +13,12 @@ import { RegisterView } from './views/RegisterView.js';
 import { LandingView } from './views/LandingView.js';
 import { DashboardView } from './views/DashboardView.js';
 import { UserDashboardView } from './views/UserDashboardView.js';
+import { CatalogueView } from './views/CatalogueView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
 import { Modal } from './views/components/Modal.js';
-import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign } from './utils/storage.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCartCount } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout, getUserRole } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
@@ -204,8 +205,7 @@ function showUserDashboard() {
         onDeleteDesign: handleDeleteDesign,
         onLogout: handleLogout,
         onBrowseCatalogue: (category) => {
-            // Catalogue view will be wired in Phase B.2
-            Toast.info('Furniture catalogue coming soon');
+            showCatalogue(category);
         },
         onViewCart: () => {
             // Cart view will be wired in Phase B.3
@@ -215,9 +215,57 @@ function showUserDashboard() {
 
     userDashboardView.render(container, userDesigns, username, {
         fullName,
-        cartCount: 0
+        cartCount: getCartCount(username)
     });
     AppState.viewInstance = userDashboardView;
+}
+
+/**
+ * Navigate to the furniture catalogue browser
+ * @param {string} [category='all'] - Initial category filter
+ */
+function showCatalogue(category = 'all') {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'catalogue';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user ? AppState.user.username : '';
+
+    const catalogueView = new CatalogueView({
+        onBack: () => showDashboard(),
+        onAddToCart: (furnitureType, price) => {
+            const success = addToCart(username, furnitureType, 1, price);
+            if (success) {
+                const count = getCartCount(username);
+                catalogueView.updateCartCount(count);
+                Toast.success('Added to cart');
+            } else {
+                Toast.error('Failed to add to cart');
+            }
+        },
+        onUseInDesign: (furnitureType) => {
+            // Open a new design — the furniture type is stored for the editor to consume
+            handleNewDesign();
+        },
+        onViewCart: () => {
+            // Cart view will be wired in Phase B.3
+            Toast.info('Shopping cart coming soon');
+        }
+    });
+
+    catalogueView.render(container, {
+        category: category || 'all',
+        cartCount: getCartCount(username)
+    });
+    AppState.viewInstance = catalogueView;
 }
 
 /**
@@ -515,6 +563,7 @@ export {
     showDashboard,
     showAdminDashboard,
     showUserDashboard,
+    showCatalogue,
     showEditor,
     showComparison,
     handleLogout,
