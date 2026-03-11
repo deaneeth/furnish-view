@@ -404,6 +404,16 @@ class EditorView {
             this.canvasController?.cancelPlacing();
         }
     }
+
+    /**
+     * Programmatically start placing a furniture type (e.g. from catalogue "Use in Design")
+     * @param {string} type - Furniture type to place
+     */
+    startPlacingFurniture(type) {
+        if (!type) return;
+        this.toolbar?.setSelectedType(type);
+        this.canvasController?.startPlacing(type);
+    }
     
     /**
      * Handle undo action

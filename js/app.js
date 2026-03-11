@@ -34,7 +34,8 @@ const AppState = {
     currentView: null,
     currentDesignId: null,
     user: null,
-    viewInstance: null
+    viewInstance: null,
+    pendingFurnitureType: null
 };
 
 /**
@@ -253,7 +254,7 @@ function showCatalogue(category = 'all') {
             }
         },
         onUseInDesign: (furnitureType) => {
-            // Open a new design — the furniture type is stored for the editor to consume
+            AppState.pendingFurnitureType = furnitureType;
             handleNewDesign();
         },
         onViewCart: () => {
@@ -563,6 +564,12 @@ function showEditor(designId) {
     
     editorView.render(container, design);
     AppState.viewInstance = editorView;
+
+    // Auto-start placing mode if a furniture type was pre-selected from catalogue
+    if (AppState.pendingFurnitureType) {
+        editorView.startPlacingFurniture(AppState.pendingFurnitureType);
+        AppState.pendingFurnitureType = null;
+    }
 }
 
 /**
