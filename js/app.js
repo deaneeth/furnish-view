@@ -9,6 +9,7 @@
  */
 
 import { LoginView } from './views/LoginView.js';
+import { RegisterView } from './views/RegisterView.js';
 import { LandingView } from './views/LandingView.js';
 import { DashboardView } from './views/DashboardView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
@@ -94,11 +95,35 @@ function showLogin() {
         onLoginSuccess: () => {
             AppState.user = getCurrentUser();
             showDashboard();
-        }
+        },
+        onSwitchToRegister: () => showRegister()
     });
     
     loginView.render(container);
     AppState.viewInstance = loginView;
+}
+
+/**
+ * Navigate to the registration view
+ */
+function showRegister() {
+    clearContainer();
+    AppState.currentView = 'register';
+    AppState.user = null;
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const registerView = new RegisterView({
+        onRegisterSuccess: () => {
+            AppState.user = getCurrentUser();
+            showDashboard();
+        },
+        onSwitchToLogin: () => showLogin()
+    });
+
+    registerView.render(container);
+    AppState.viewInstance = registerView;
 }
 
 /**
@@ -426,6 +451,7 @@ export {
     AppState,
     showLanding,
     showLogin,
+    showRegister,
     showDashboard,
     showEditor,
     showComparison,

@@ -8,7 +8,8 @@
  * @module views/LandingView
  */
 
-import { login } from '../auth/auth.js';
+import { login, register } from '../auth/auth.js';
+import { isUsernameTaken } from '../utils/storage.js';
 
 class LandingView {
     constructor({ onLoginSuccess = () => {} } = {}) {
@@ -17,6 +18,17 @@ class LandingView {
         this._scrollHandler = null;
         this._keyHandler = null;
         this._intersectionObserver = null;
+        this._usernameCheckTimer = null;
+        this._currentPanel = 'login';
+        this._selectedRole = null;
+        this._regFieldState = {
+            fullName: false,
+            email: false,
+            username: false,
+            password: false,
+            confirmPassword: false,
+            role: false
+        };
     }
 
     render(container) {
@@ -289,32 +301,104 @@ class LandingView {
                 </div>
             </footer>
 
-            <!-- ===== LOGIN MODAL ===== -->
+            <!-- ===== AUTH MODAL ===== -->
             <div class="lp-modal-overlay" id="lp-modal-overlay">
-                <div class="lp-modal" role="dialog" aria-modal="true" aria-labelledby="lp-modal-title">
+                <div class="lp-modal lp-modal--auth" role="dialog" aria-modal="true" aria-labelledby="lp-modal-title">
                     <button class="lp-modal__close" id="lp-modal-close" aria-label="Close">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
-                    <div class="lp-modal__header">
-                        <h2 id="lp-modal-title">Welcome back</h2>
-                        <p>Sign in to your design workspace</p>
+
+                    <!-- LOGIN PANEL -->
+                    <div class="lp-modal__panel" id="lp-login-panel">
+                        <div class="lp-modal__header">
+                            <h2 id="lp-modal-title">Welcome back</h2>
+                            <p>Sign in to your design workspace</p>
+                        </div>
+                        <form id="lp-login-form" class="lp-modal__form" novalidate>
+                            <div class="lp-modal__field">
+                                <label for="lp-username">Username</label>
+                                <input type="text" id="lp-username" placeholder="Enter your username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                            </div>
+                            <div class="lp-modal__field">
+                                <label for="lp-password">Password</label>
+                                <input type="password" id="lp-password" placeholder="Enter your password" autocomplete="current-password" required>
+                            </div>
+                            <div id="lp-login-error" class="lp-modal__error" role="alert" aria-live="polite"></div>
+                            <button type="submit" id="lp-login-submit" class="lp-btn lp-btn--primary lp-btn--full" disabled>
+                                <span class="lp-modal__submit-text">Continue</span>
+                                <span class="lp-modal__spinner"></span>
+                            </button>
+                        </form>
+                        <p class="lp-modal__hint">Demo: <strong>designer1</strong> / <strong>password123</strong></p>
+                        <p class="lp-modal__switch">Don't have an account? <button type="button" class="lp-modal__switch-link" id="lp-switch-register">Sign Up</button></p>
                     </div>
-                    <form id="lp-login-form" class="lp-modal__form" novalidate>
-                        <div class="lp-modal__field">
-                            <label for="lp-username">Username</label>
-                            <input type="text" id="lp-username" placeholder="Enter your username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+
+                    <!-- REGISTER PANEL -->
+                    <div class="lp-modal__panel lp-modal__panel--hidden" id="lp-register-panel">
+                        <div class="lp-modal__header">
+                            <h2>Create your account</h2>
+                            <p>Join FurnishView to start designing</p>
                         </div>
-                        <div class="lp-modal__field">
-                            <label for="lp-password">Password</label>
-                            <input type="password" id="lp-password" placeholder="Enter your password" autocomplete="current-password" required>
-                        </div>
-                        <div id="lp-login-error" class="lp-modal__error" role="alert" aria-live="polite"></div>
-                        <button type="submit" id="lp-login-submit" class="lp-btn lp-btn--primary lp-btn--full" disabled>
-                            <span class="lp-modal__submit-text">Continue</span>
-                            <span class="lp-modal__spinner"></span>
-                        </button>
-                    </form>
-                    <p class="lp-modal__hint">Demo: <strong>designer1</strong> / <strong>password123</strong></p>
+                        <form id="lp-register-form" class="lp-modal__form" novalidate>
+                            <div class="lp-modal__field">
+                                <label for="lp-reg-fullname">Full Name</label>
+                                <input type="text" id="lp-reg-fullname" placeholder="Enter your full name" autocomplete="name" required>
+                                <span class="lp-modal__field-msg" id="lp-reg-fullname-msg"></span>
+                            </div>
+                            <div class="lp-modal__field">
+                                <label for="lp-reg-email">Email</label>
+                                <input type="email" id="lp-reg-email" placeholder="you@example.com" autocomplete="email" required>
+                                <span class="lp-modal__field-msg" id="lp-reg-email-msg"></span>
+                            </div>
+                            <div class="lp-modal__field">
+                                <label for="lp-reg-username">Username</label>
+                                <div class="lp-modal__field-input-wrap">
+                                    <input type="text" id="lp-reg-username" placeholder="Choose a username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                                    <span class="lp-reg-username-status" id="lp-reg-username-status" aria-live="polite"></span>
+                                </div>
+                                <span class="lp-modal__field-msg" id="lp-reg-username-msg"></span>
+                            </div>
+                            <div class="lp-modal__field">
+                                <label for="lp-reg-password">Password</label>
+                                <input type="password" id="lp-reg-password" placeholder="Minimum 6 characters" autocomplete="new-password" required>
+                                <div class="lp-reg-strength" id="lp-reg-strength">
+                                    <div class="lp-reg-strength__bar">
+                                        <span class="lp-reg-strength__seg" data-level="1"></span>
+                                        <span class="lp-reg-strength__seg" data-level="2"></span>
+                                        <span class="lp-reg-strength__seg" data-level="3"></span>
+                                        <span class="lp-reg-strength__seg" data-level="4"></span>
+                                    </div>
+                                    <span class="lp-reg-strength__label" id="lp-reg-strength-label"></span>
+                                </div>
+                            </div>
+                            <div class="lp-modal__field">
+                                <label for="lp-reg-confirm">Confirm Password</label>
+                                <input type="password" id="lp-reg-confirm" placeholder="Re-enter your password" autocomplete="new-password" required>
+                                <span class="lp-modal__field-msg" id="lp-reg-confirm-msg"></span>
+                            </div>
+                            <div class="lp-modal__field lp-modal__field--roles">
+                                <label>I am a...</label>
+                                <div class="lp-reg-roles" id="lp-reg-roles">
+                                    <button type="button" class="lp-reg-role-card" data-role="admin" aria-pressed="false">
+                                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                                        <span class="lp-reg-role-card__title">Designer</span>
+                                        <span class="lp-reg-role-card__desc">Create designs for customers</span>
+                                    </button>
+                                    <button type="button" class="lp-reg-role-card" data-role="user" aria-pressed="false">
+                                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                        <span class="lp-reg-role-card__title">Customer</span>
+                                        <span class="lp-reg-role-card__desc">Design your own room</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="lp-register-error" class="lp-modal__error" role="alert" aria-live="polite"></div>
+                            <button type="submit" id="lp-register-submit" class="lp-btn lp-btn--primary lp-btn--full" disabled>
+                                <span class="lp-modal__submit-text">Create Account</span>
+                                <span class="lp-modal__spinner"></span>
+                            </button>
+                        </form>
+                        <p class="lp-modal__switch">Already have an account? <button type="button" class="lp-modal__switch-link" id="lp-switch-login">Sign In</button></p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -328,13 +412,37 @@ class LandingView {
     _cacheElements() {
         this.nav = this.container.querySelector('#lp-nav');
         this.overlay = this.container.querySelector('#lp-modal-overlay');
+        this.burger = this.container.querySelector('#lp-burger');
+        this.navLinks = this.container.querySelector('#lp-nav-links');
+
+        // Login panel elements
+        this.loginPanel = this.container.querySelector('#lp-login-panel');
         this.loginForm = this.container.querySelector('#lp-login-form');
         this.usernameInput = this.container.querySelector('#lp-username');
         this.passwordInput = this.container.querySelector('#lp-password');
         this.submitBtn = this.container.querySelector('#lp-login-submit');
         this.errorEl = this.container.querySelector('#lp-login-error');
-        this.burger = this.container.querySelector('#lp-burger');
-        this.navLinks = this.container.querySelector('#lp-nav-links');
+
+        // Register panel elements
+        this.registerPanel = this.container.querySelector('#lp-register-panel');
+        this._reg = {
+            form: this.container.querySelector('#lp-register-form'),
+            fullName: this.container.querySelector('#lp-reg-fullname'),
+            email: this.container.querySelector('#lp-reg-email'),
+            username: this.container.querySelector('#lp-reg-username'),
+            password: this.container.querySelector('#lp-reg-password'),
+            confirm: this.container.querySelector('#lp-reg-confirm'),
+            submit: this.container.querySelector('#lp-register-submit'),
+            error: this.container.querySelector('#lp-register-error'),
+            usernameStatus: this.container.querySelector('#lp-reg-username-status'),
+            strengthLabel: this.container.querySelector('#lp-reg-strength-label'),
+            strengthSegs: this.container.querySelectorAll('.lp-reg-strength__seg'),
+            roleCards: this.container.querySelectorAll('.lp-reg-role-card'),
+            fullNameMsg: this.container.querySelector('#lp-reg-fullname-msg'),
+            emailMsg: this.container.querySelector('#lp-reg-email-msg'),
+            usernameMsg: this.container.querySelector('#lp-reg-username-msg'),
+            confirmMsg: this.container.querySelector('#lp-reg-confirm-msg')
+        };
     }
 
     _attachListeners() {
@@ -353,16 +461,39 @@ class LandingView {
         this._keyHandler = e => { if (e.key === 'Escape') this._closeModal(); };
         document.addEventListener('keydown', this._keyHandler);
 
+        // Panel toggles
+        this.container.querySelector('#lp-switch-register')?.addEventListener('click', () => this._showRegisterPanel());
+        this.container.querySelector('#lp-switch-login')?.addEventListener('click', () => this._showLoginPanel());
+
         // Login form
         this.loginForm?.addEventListener('submit', e => { e.preventDefault(); this._handleLogin(); });
 
-        // Enable/disable submit
+        // Enable/disable login submit
         const updateBtn = () => {
             const ok = this.usernameInput?.value.trim() && this.passwordInput?.value.trim();
             if (this.submitBtn) this.submitBtn.disabled = !ok;
         };
         this.usernameInput?.addEventListener('input', updateBtn);
         this.passwordInput?.addEventListener('input', updateBtn);
+
+        // ---- Register form listeners ----
+        this._reg.form?.addEventListener('submit', e => { e.preventDefault(); this._handleRegister(); });
+        this._reg.fullName?.addEventListener('input', () => this._regValidateFullName());
+        this._reg.email?.addEventListener('input', () => this._regValidateEmail());
+        this._reg.username?.addEventListener('input', () => this._regHandleUsernameInput());
+        this._reg.password?.addEventListener('input', () => {
+            this._regValidatePassword();
+            if (this._reg.confirm?.value) this._regValidateConfirm();
+        });
+        this._reg.confirm?.addEventListener('input', () => this._regValidateConfirm());
+        this._reg.roleCards.forEach(card => {
+            card.addEventListener('click', () => this._regSelectRole(card.dataset.role));
+        });
+
+        // Clear register error on any input
+        [this._reg.fullName, this._reg.email, this._reg.username, this._reg.password, this._reg.confirm].forEach(input => {
+            input?.addEventListener('input', () => this._regClearError());
+        });
 
         // Navbar scroll
         this._scrollHandler = () => this.nav?.classList.toggle('scrolled', window.scrollY > 40);
@@ -429,6 +560,239 @@ class LandingView {
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.classList.remove('visible'); }
     }
 
+    /**
+     * Toggle the modal to show the login panel
+     * @private
+     */
+    _showLoginPanel() {
+        this._currentPanel = 'login';
+        if (this.loginPanel) this.loginPanel.classList.remove('lp-modal__panel--hidden');
+        if (this.registerPanel) this.registerPanel.classList.add('lp-modal__panel--hidden');
+        requestAnimationFrame(() => this.usernameInput?.focus());
+    }
+
+    /**
+     * Toggle the modal to show the register panel
+     * @private
+     */
+    _showRegisterPanel() {
+        this._currentPanel = 'register';
+        if (this.loginPanel) this.loginPanel.classList.add('lp-modal__panel--hidden');
+        if (this.registerPanel) this.registerPanel.classList.remove('lp-modal__panel--hidden');
+        requestAnimationFrame(() => this._reg.fullName?.focus());
+    }
+
+    /**
+     * Validate full name in register form
+     * @private
+     */
+    _regValidateFullName() {
+        const val = this._reg.fullName?.value.trim() || '';
+        const valid = val.length >= 2;
+        this._regFieldState.fullName = valid;
+        this._regSetFieldMsg(this._reg.fullName, this._reg.fullNameMsg, valid, valid ? '' : 'Name must be at least 2 characters');
+        this._regUpdateSubmit();
+    }
+
+    /**
+     * Validate email in register form
+     * @private
+     */
+    _regValidateEmail() {
+        const val = this._reg.email?.value.trim() || '';
+        const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+        this._regFieldState.email = valid;
+        this._regSetFieldMsg(this._reg.email, this._reg.emailMsg, valid, valid ? '' : 'Please enter a valid email');
+        this._regUpdateSubmit();
+    }
+
+    /**
+     * Handle username input with debounced availability check in register form
+     * @private
+     */
+    _regHandleUsernameInput() {
+        const val = this._reg.username?.value.trim() || '';
+        if (this._usernameCheckTimer) clearTimeout(this._usernameCheckTimer);
+
+        if (val.length < 3) {
+            this._regFieldState.username = false;
+            this._regSetUsernameStatus('', '');
+            this._regSetFieldMsg(this._reg.username, this._reg.usernameMsg, false, val.length > 0 ? 'At least 3 characters' : '');
+            this._regUpdateSubmit();
+            return;
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(val)) {
+            this._regFieldState.username = false;
+            this._regSetUsernameStatus('', '');
+            this._regSetFieldMsg(this._reg.username, this._reg.usernameMsg, false, 'Letters, numbers, underscores only');
+            this._regUpdateSubmit();
+            return;
+        }
+
+        this._regSetUsernameStatus('Checking...', 'checking');
+        this._regSetFieldMsg(this._reg.username, this._reg.usernameMsg, null, '');
+
+        this._usernameCheckTimer = setTimeout(() => {
+            const taken = isUsernameTaken(val);
+            this._regFieldState.username = !taken;
+            this._regSetUsernameStatus(taken ? 'Taken' : 'Available', taken ? 'taken' : 'available');
+            this._regSetFieldMsg(this._reg.username, this._reg.usernameMsg, !taken, taken ? 'Username is already in use' : '');
+            this._regUpdateSubmit();
+        }, 400);
+    }
+
+    /**
+     * Update username status indicator in register form
+     * @param {string} text - Status text
+     * @param {string} state - CSS modifier class
+     * @private
+     */
+    _regSetUsernameStatus(text, state) {
+        const el = this._reg.usernameStatus;
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'lp-reg-username-status';
+        if (state) el.classList.add(`lp-reg-username-status--${state}`);
+    }
+
+    /**
+     * Validate password and update strength bar in register form
+     * @private
+     */
+    _regValidatePassword() {
+        const val = this._reg.password?.value || '';
+        let score = 0;
+        if (val.length >= 6) score++;
+        if (val.length >= 10) score++;
+        if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
+        if (/[0-9]/.test(val) && /[^a-zA-Z0-9]/.test(val)) score++;
+
+        this._regFieldState.password = val.length >= 6;
+        const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+        const colors = ['', 'weak', 'fair', 'good', 'strong'];
+
+        this._reg.strengthSegs.forEach((seg, i) => {
+            seg.className = 'lp-reg-strength__seg';
+            if (i < score) seg.classList.add(`lp-reg-strength__seg--${colors[score]}`);
+        });
+        if (this._reg.strengthLabel) {
+            this._reg.strengthLabel.textContent = labels[score] || '';
+            this._reg.strengthLabel.className = 'lp-reg-strength__label';
+            if (score > 0) this._reg.strengthLabel.classList.add(`lp-reg-strength__label--${colors[score]}`);
+        }
+        this._regUpdateSubmit();
+    }
+
+    /**
+     * Validate confirm password in register form
+     * @private
+     */
+    _regValidateConfirm() {
+        const pass = this._reg.password?.value || '';
+        const conf = this._reg.confirm?.value || '';
+        const valid = conf.length > 0 && conf === pass;
+        this._regFieldState.confirmPassword = valid;
+        this._regSetFieldMsg(this._reg.confirm, this._reg.confirmMsg, conf.length === 0 ? null : valid, valid || conf.length === 0 ? '' : 'Passwords do not match');
+        this._regUpdateSubmit();
+    }
+
+    /**
+     * Select a role in register form
+     * @param {string} role - 'admin' or 'user'
+     * @private
+     */
+    _regSelectRole(role) {
+        this._selectedRole = role;
+        this._regFieldState.role = true;
+        this._reg.roleCards.forEach(card => {
+            const sel = card.dataset.role === role;
+            card.classList.toggle('lp-reg-role-card--selected', sel);
+            card.setAttribute('aria-pressed', sel ? 'true' : 'false');
+        });
+        this._regUpdateSubmit();
+    }
+
+    /**
+     * Set feedback message on a register form field
+     * @param {HTMLInputElement} input - The input element
+     * @param {HTMLElement} msgEl - The message element
+     * @param {boolean|null} valid - Validation state
+     * @param {string} message - Message text
+     * @private
+     */
+    _regSetFieldMsg(input, msgEl, valid, message) {
+        if (input) {
+            input.classList.remove('lp-field-valid', 'lp-field-error');
+            if (valid === true) input.classList.add('lp-field-valid');
+            else if (valid === false && input.value.length > 0) input.classList.add('lp-field-error');
+        }
+        if (msgEl) {
+            msgEl.textContent = message;
+            msgEl.className = 'lp-modal__field-msg';
+            if (valid === false && message) msgEl.classList.add('lp-modal__field-msg--error');
+            else if (valid === true) msgEl.classList.add('lp-modal__field-msg--valid');
+        }
+    }
+
+    /**
+     * Update submit button state for register form
+     * @private
+     */
+    _regUpdateSubmit() {
+        if (!this._reg.submit) return;
+        const allValid = Object.values(this._regFieldState).every(v => v === true);
+        this._reg.submit.disabled = !allValid;
+    }
+
+    /**
+     * Show error message in register form
+     * @param {string} msg - Error message
+     * @private
+     */
+    _regShowError(msg) {
+        if (this._reg.error) { this._reg.error.textContent = msg; this._reg.error.classList.add('visible'); }
+    }
+
+    /**
+     * Clear error message in register form
+     * @private
+     */
+    _regClearError() {
+        if (this._reg.error) { this._reg.error.textContent = ''; this._reg.error.classList.remove('visible'); }
+    }
+
+    /**
+     * Handle registration form submission
+     * @private
+     */
+    async _handleRegister() {
+        const fullName = this._reg.fullName?.value.trim() || '';
+        const email = this._reg.email?.value.trim() || '';
+        const username = this._reg.username?.value.trim() || '';
+        const password = this._reg.password?.value || '';
+        const confirmPw = this._reg.confirm?.value || '';
+        const role = this._selectedRole;
+
+        if (password !== confirmPw) { this._regShowError('Passwords do not match'); return; }
+        if (!role) { this._regShowError('Please select a role'); return; }
+
+        this._regClearError();
+        if (this._reg.submit) { this._reg.submit.disabled = true; this._reg.submit.classList.add('loading'); }
+        await new Promise(r => setTimeout(r, 400));
+
+        const result = register(username, password, role, fullName, email);
+
+        if (this._reg.submit) this._reg.submit.classList.remove('loading');
+
+        if (result.success) {
+            this._closeModal();
+            this.onLoginSuccess();
+        } else {
+            this._regShowError(result.message || 'Registration failed');
+            this._regUpdateSubmit();
+        }
+    }
+
     _initScrollAnimations() {
         const items = this.container.querySelectorAll('.lp-reveal');
         if (!items.length) return;
@@ -449,6 +813,7 @@ class LandingView {
         if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
         if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
         if (this._intersectionObserver) this._intersectionObserver.disconnect();
+        if (this._usernameCheckTimer) clearTimeout(this._usernameCheckTimer);
         document.body.style.overflow = '';
     }
 }
