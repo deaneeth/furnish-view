@@ -15,11 +15,12 @@ import { DashboardView } from './views/DashboardView.js';
 import { UserDashboardView } from './views/UserDashboardView.js';
 import { CatalogueView } from './views/CatalogueView.js';
 import { CartView } from './views/CartView.js';
+import { CheckoutView } from './views/CheckoutView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
 import { Modal } from './views/components/Modal.js';
-import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCart, getCartCount, removeFromCart, updateCartQuantity, clearCart } from './utils/storage.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCart, getCartCount, removeFromCart, updateCartQuantity, clearCart, saveOrder, getUserByUsername } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout, getUserRole } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
@@ -303,13 +304,62 @@ function showCart() {
             cartView.refresh(getCart(username));
         },
         onCheckout: () => {
-            // Checkout view will be wired in Phase B.4
-            Toast.info('Checkout coming soon');
+            showCheckout();
         }
     });
 
     cartView.render(container, getCart(username));
     AppState.viewInstance = cartView;
+}
+
+/**
+ * Navigate to the checkout page
+ */
+function showCheckout() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    AppState.user = getCurrentUser();
+    const username = AppState.user ? AppState.user.username : '';
+    const cartItems = getCart(username);
+
+    if (cartItems.length === 0) {
+        Toast.info('Your cart is empty');
+        showCart();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'checkout';
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const checkoutView = new CheckoutView({
+        onBack: () => showCart(),
+        onPlaceOrder: (deliveryDetails) => {
+            const subtotal = cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+            const deliveryFee = subtotal >= 500 ? 0 : 49.99;
+            const total = subtotal + deliveryFee;
+
+            const result = saveOrder(username, cartItems, total, deliveryDetails);
+            if (result.success) {
+                clearCart(username);
+            }
+            return result;
+        },
+        onContinueDesigning: () => showDashboard()
+    });
+
+    const userProfile = getUserByUsername(username);
+
+    checkoutView.render(container, cartItems, {
+        fullName: userProfile ? userProfile.fullName : (AppState.user ? AppState.user.fullName : ''),
+        email: userProfile ? userProfile.email : ''
+    });
+    AppState.viewInstance = checkoutView;
 }
 
 /**
@@ -609,6 +659,7 @@ export {
     showUserDashboard,
     showCatalogue,
     showCart,
+    showCheckout,
     showEditor,
     showComparison,
     handleLogout,

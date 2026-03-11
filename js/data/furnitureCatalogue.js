@@ -3,7 +3,7 @@
  *
  * Defines available furniture types with default dimensions, colours, display info,
  * pricing, categories, and descriptions for the catalogue browser.
- * All dimensions are in meters. Prices are in GBP (£).
+ * All dimensions are in meters. Prices are in USD ($).
  *
  * @file js/data/furnitureCatalogue.js
  * @module data/furnitureCatalogue

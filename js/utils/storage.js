@@ -827,6 +827,77 @@ function getCartCount(username) {
 }
 
 // ============================================================================
+// ORDER MANAGEMENT
+// ============================================================================
+
+/**
+ * Generate a unique order reference number.
+ * Format: FV-YYYY-XXXXX (e.g., FV-2026-83742)
+ * @returns {string} Order reference ID
+ * @private
+ */
+function generateOrderId() {
+    const year = new Date().getFullYear();
+    const random = Math.floor(10000 + Math.random() * 90000);
+    return `FV-${year}-${random}`;
+}
+
+/**
+ * Save a completed order to storage.
+ * @param {string} username - Username placing the order
+ * @param {Array<{type: string, quantity: number, price: number}>} items - Cart items
+ * @param {number} total - Order total including delivery
+ * @param {Object} deliveryDetails - Delivery address details
+ * @param {string} deliveryDetails.fullName - Recipient name
+ * @param {string} deliveryDetails.email - Contact email
+ * @param {string} deliveryDetails.address - Street address
+ * @param {string} deliveryDetails.city - City
+ * @param {string} deliveryDetails.postcode - Postcode
+ * @param {string} deliveryDetails.phone - Phone number
+ * @returns {{success: boolean, orderId: string|null}} Result with generated order ID
+ */
+function saveOrder(username, items, total, deliveryDetails) {
+    if (typeof username !== 'string' || username.trim().length === 0) {
+        return { success: false, orderId: null };
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+        return { success: false, orderId: null };
+    }
+
+    const orderId = generateOrderId();
+    const order = {
+        orderId,
+        username: username.trim().toLowerCase(),
+        items: items.map(i => ({ type: i.type, quantity: i.quantity, price: i.price })),
+        total: Number(total) || 0,
+        delivery: deliveryDetails || {},
+        status: 'confirmed',
+        createdAt: new Date().toISOString()
+    };
+
+    const allOrders = safeJSONParse(safeGetItem(STORAGE_KEYS.orders), []);
+    allOrders.push(order);
+
+    const saved = safeSetItem(STORAGE_KEYS.orders, JSON.stringify(allOrders));
+    return saved ? { success: true, orderId } : { success: false, orderId: null };
+}
+
+/**
+ * Get all orders for a user, sorted newest first.
+ * @param {string} username - Username
+ * @returns {Array<Object>} Array of order objects
+ */
+function getOrders(username) {
+    if (typeof username !== 'string' || username.trim().length === 0) return [];
+
+    const allOrders = safeJSONParse(safeGetItem(STORAGE_KEYS.orders), []);
+    const key = username.trim().toLowerCase();
+    return allOrders
+        .filter(o => o.username === key)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -871,6 +942,10 @@ export {
     clearCart,
     getCartTotal,
     getCartCount,
+
+    // Order management
+    saveOrder,
+    getOrders,
 
     // Constants (re-exported for convenience)
     MAX_DESIGNS_PER_USER

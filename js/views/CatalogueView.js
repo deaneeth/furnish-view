@@ -69,13 +69,13 @@ function escapeHtml(text) {
 }
 
 /**
- * Format a price in GBP
+ * Format a price in USD
  * @param {number} price - Price value
- * @returns {string} Formatted price string (e.g., "£599")
+ * @returns {string} Formatted price string (e.g., "$599")
  * @private
  */
 function formatPrice(price) {
-    return `£${Number(price).toLocaleString('en-GB')}`;
+    return `$${Number(price).toLocaleString('en-US')}`;
 }
 
 /**

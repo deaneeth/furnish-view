@@ -26,10 +26,10 @@ import { getFurnitureByType } from '../data/furnitureCatalogue.js';
 import { Toast } from './components/Toast.js';
 import { Modal } from './components/Modal.js';
 
-/** Delivery fee in GBP */
+/** Delivery fee in USD */
 const DELIVERY_FEE = 49.99;
 
-/** Free delivery threshold in GBP */
+/** Free delivery threshold in USD */
 const FREE_DELIVERY_THRESHOLD = 500;
 
 /**
@@ -67,13 +67,13 @@ function escapeHtml(text) {
 }
 
 /**
- * Format a price in GBP
+ * Format a price in USD
  * @param {number} price - Price value
- * @returns {string} Formatted price string (e.g., "£599.00")
+ * @returns {string} Formatted price string (e.g., "$599.00")
  * @private
  */
 function formatPrice(price) {
-    return `£${Number(price).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /**
