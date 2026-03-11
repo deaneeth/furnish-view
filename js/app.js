@@ -12,6 +12,7 @@ import { LoginView } from './views/LoginView.js';
 import { RegisterView } from './views/RegisterView.js';
 import { LandingView } from './views/LandingView.js';
 import { DashboardView } from './views/DashboardView.js';
+import { UserDashboardView } from './views/UserDashboardView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
@@ -127,27 +128,44 @@ function showRegister() {
 }
 
 /**
- * Navigate to the dashboard view
+ * Navigate to the appropriate dashboard based on user role.
+ * Admin (designer) → DashboardView, User (customer) → UserDashboardView
  */
 function showDashboard() {
-    // Check authentication
     if (!isLoggedIn()) {
         showLanding();
         return;
     }
-    
+
+    AppState.user = getCurrentUser();
+    const role = getUserRole();
+
+    if (role === 'user') {
+        showUserDashboard();
+    } else {
+        showAdminDashboard();
+    }
+}
+
+/**
+ * Navigate to the admin (designer) dashboard
+ */
+function showAdminDashboard() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
     clearContainer();
     AppState.currentView = 'dashboard';
     AppState.user = getCurrentUser();
-    
+
     const container = getAppContainer();
     if (!container) return;
-    
-    // Get user's designs (getAllDesigns expects a username string)
+
     const username = AppState.user ? AppState.user.username : '';
     const userDesigns = getAllDesigns(username);
-    
-    // Create and render dashboard view
+
     const dashboardView = new DashboardView({
         onNewDesign: handleNewDesign,
         onOpenDesign: handleOpenDesign,
@@ -155,9 +173,51 @@ function showDashboard() {
         onLogout: handleLogout,
         onCompareDesigns: handleCompareDesigns
     });
-    
+
     dashboardView.render(container, userDesigns, username);
     AppState.viewInstance = dashboardView;
+}
+
+/**
+ * Navigate to the user (customer) dashboard
+ */
+function showUserDashboard() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'user-dashboard';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user ? AppState.user.username : '';
+    const fullName = AppState.user ? AppState.user.fullName : '';
+    const userDesigns = getAllDesigns(username);
+
+    const userDashboardView = new UserDashboardView({
+        onNewDesign: handleNewDesign,
+        onOpenDesign: handleOpenDesign,
+        onDeleteDesign: handleDeleteDesign,
+        onLogout: handleLogout,
+        onBrowseCatalogue: (category) => {
+            // Catalogue view will be wired in Phase B.2
+            Toast.info('Furniture catalogue coming soon');
+        },
+        onViewCart: () => {
+            // Cart view will be wired in Phase B.3
+            Toast.info('Shopping cart coming soon');
+        }
+    });
+
+    userDashboardView.render(container, userDesigns, username, {
+        fullName,
+        cartCount: 0
+    });
+    AppState.viewInstance = userDashboardView;
 }
 
 /**
@@ -453,6 +513,8 @@ export {
     showLogin,
     showRegister,
     showDashboard,
+    showAdminDashboard,
+    showUserDashboard,
     showEditor,
     showComparison,
     handleLogout,

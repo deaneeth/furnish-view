@@ -2581,6 +2581,348 @@ body.modal-open {
 
 
 /* ==========================================================================
+   User (Customer) Dashboard
+   ========================================================================== */
+
+.user-dashboard {
+    min-height: 100vh;
+    background-color: #FAFAF8;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Reuses .dashboard-header, .dashboard-brand, .dashboard-logo, etc. from admin dashboard */
+
+/* --- Cart Button in header --- */
+.ud-cart-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #E8E8ED;
+    border-radius: 10px;
+    background: #fff;
+    color: #6E6E73;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.ud-cart-btn:hover {
+    border-color: #D1D1D6;
+    color: #1D1D1F;
+    background: #F5F5F7;
+}
+
+.ud-cart-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #B8864E;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+
+/* --- Main Content --- */
+.ud-main {
+    flex: 1;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 48px 60px;
+}
+
+/* --- Hero Section --- */
+.ud-hero {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+    padding: 48px 0 40px;
+    border-bottom: 1px solid #E8E8ED;
+    margin-bottom: 36px;
+}
+
+.ud-hero__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ud-hero__title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1D1D1F;
+    letter-spacing: -0.8px;
+    margin: 0 0 10px;
+    line-height: 1.15;
+}
+
+.ud-hero__subtitle {
+    font-size: 16px;
+    color: #6E6E73;
+    line-height: 1.55;
+    margin: 0 0 24px;
+    max-width: 420px;
+}
+
+.ud-hero__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 28px;
+    border-radius: 980px;
+    background: #1D1D1F;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.ud-hero__cta:hover {
+    opacity: 0.85;
+    box-shadow: 0 4px 16px rgba(29, 29, 31, 0.18);
+}
+
+.ud-hero__cta:active {
+    transform: scale(0.97);
+}
+
+.ud-hero__visual {
+    flex-shrink: 0;
+    width: 320px;
+}
+
+.ud-hero__illustration {
+    width: 100%;
+    height: auto;
+    border-radius: 16px;
+    background: #F5F0EB;
+    border: 1px solid #E8E0D8;
+}
+
+/* --- Section Layout --- */
+.ud-section {
+    margin-bottom: 40px;
+}
+
+.ud-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.ud-section-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1D1D1F;
+    letter-spacing: -0.4px;
+    margin: 0;
+}
+
+.ud-section-subtitle {
+    font-size: 14px;
+    color: #6E6E73;
+    margin: 0;
+    width: 100%;
+}
+
+.ud-section-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* --- Quick Actions --- */
+.ud-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.ud-quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 16px;
+    background: #fff;
+    border: 1px solid #E8E8ED;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(.22,1,.36,1), box-shadow 0.3s, border-color 0.2s;
+}
+
+.ud-quick-action:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    border-color: #D1D1D6;
+}
+
+.ud-quick-action:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.ud-quick-action__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #F5F0EB;
+    color: #B8864E;
+}
+
+.ud-quick-action__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1D1D1F;
+    letter-spacing: -0.1px;
+}
+
+/* --- Category Cards --- */
+.ud-categories-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+}
+
+.ud-category-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 12px 20px;
+    background: #fff;
+    border: 1px solid #E8E8ED;
+    border-radius: 16px;
+    cursor: pointer;
+    text-align: center;
+    transition: transform 0.3s cubic-bezier(.22,1,.36,1), box-shadow 0.3s, border-color 0.2s;
+}
+
+.ud-category-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    border-color: #D1D1D6;
+}
+
+.ud-category-card:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.ud-category-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #F5F0EB;
+    color: #B8864E;
+}
+
+.ud-category-card__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1D1D1F;
+    letter-spacing: -0.1px;
+}
+
+.ud-category-card__desc {
+    font-size: 12px;
+    color: #A1A1A6;
+    line-height: 1.35;
+}
+
+.ud-category-card__count {
+    font-size: 11px;
+    font-weight: 600;
+    color: #B8864E;
+    background: rgba(184, 134, 78, 0.08);
+    padding: 3px 10px;
+    border-radius: 980px;
+    margin-top: 2px;
+}
+
+/* --- Empty Designs --- */
+.ud-empty-designs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 1024px) {
+    .ud-categories-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .ud-hero__visual {
+        width: 260px;
+    }
+}
+
+@media (max-width: 768px) {
+    .ud-main {
+        padding: 0 24px 48px;
+    }
+
+    .ud-hero {
+        flex-direction: column;
+        text-align: center;
+        gap: 24px;
+        padding: 32px 0;
+    }
+
+    .ud-hero__subtitle {
+        max-width: none;
+    }
+
+    .ud-hero__visual {
+        width: 100%;
+        max-width: 320px;
+    }
+
+    .ud-quick-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .ud-categories-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ud-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .ud-categories-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* ==========================================================================
    Landing Page (Premium Light Mode)
    ========================================================================== */
 
