@@ -14,11 +14,12 @@ import { LandingView } from './views/LandingView.js';
 import { DashboardView } from './views/DashboardView.js';
 import { UserDashboardView } from './views/UserDashboardView.js';
 import { CatalogueView } from './views/CatalogueView.js';
+import { CartView } from './views/CartView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
 import { Modal } from './views/components/Modal.js';
-import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCartCount } from './utils/storage.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCart, getCartCount, removeFromCart, updateCartQuantity, clearCart } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout, getUserRole } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
@@ -208,8 +209,7 @@ function showUserDashboard() {
             showCatalogue(category);
         },
         onViewCart: () => {
-            // Cart view will be wired in Phase B.3
-            Toast.info('Shopping cart coming soon');
+            showCart();
         }
     });
 
@@ -256,8 +256,7 @@ function showCatalogue(category = 'all') {
             handleNewDesign();
         },
         onViewCart: () => {
-            // Cart view will be wired in Phase B.3
-            Toast.info('Shopping cart coming soon');
+            showCart();
         }
     });
 
@@ -266,6 +265,51 @@ function showCatalogue(category = 'all') {
         cartCount: getCartCount(username)
     });
     AppState.viewInstance = catalogueView;
+}
+
+/**
+ * Navigate to the shopping cart page
+ */
+function showCart() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'cart';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user ? AppState.user.username : '';
+
+    const cartView = new CartView({
+        onBack: () => showDashboard(),
+        onContinueShopping: () => showCatalogue(),
+        onUpdateQuantity: (furnitureType, newQuantity) => {
+            updateCartQuantity(username, furnitureType, newQuantity);
+            cartView.refresh(getCart(username));
+        },
+        onRemoveItem: (furnitureType) => {
+            removeFromCart(username, furnitureType);
+            Toast.success('Item removed from cart');
+            cartView.refresh(getCart(username));
+        },
+        onClearCart: () => {
+            clearCart(username);
+            Toast.success('Cart cleared');
+            cartView.refresh(getCart(username));
+        },
+        onCheckout: () => {
+            // Checkout view will be wired in Phase B.4
+            Toast.info('Checkout coming soon');
+        }
+    });
+
+    cartView.render(container, getCart(username));
+    AppState.viewInstance = cartView;
 }
 
 /**
@@ -564,6 +608,7 @@ export {
     showAdminDashboard,
     showUserDashboard,
     showCatalogue,
+    showCart,
     showEditor,
     showComparison,
     handleLogout,
