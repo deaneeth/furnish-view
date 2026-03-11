@@ -12,11 +12,15 @@ import { LoginView } from './views/LoginView.js';
 import { RegisterView } from './views/RegisterView.js';
 import { LandingView } from './views/LandingView.js';
 import { DashboardView } from './views/DashboardView.js';
+import { UserDashboardView } from './views/UserDashboardView.js';
+import { CatalogueView } from './views/CatalogueView.js';
+import { CartView } from './views/CartView.js';
+import { CheckoutView } from './views/CheckoutView.js';
 import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
 import { Modal } from './views/components/Modal.js';
-import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign } from './utils/storage.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCart, getCartCount, removeFromCart, updateCartQuantity, clearCart, saveOrder, getUserByUsername } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout, getUserRole } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
@@ -30,7 +34,8 @@ const AppState = {
     currentView: null,
     currentDesignId: null,
     user: null,
-    viewInstance: null
+    viewInstance: null,
+    pendingFurnitureType: null
 };
 
 /**
@@ -127,27 +132,44 @@ function showRegister() {
 }
 
 /**
- * Navigate to the dashboard view
+ * Navigate to the appropriate dashboard based on user role.
+ * Admin (designer) → DashboardView, User (customer) → UserDashboardView
  */
 function showDashboard() {
-    // Check authentication
     if (!isLoggedIn()) {
         showLanding();
         return;
     }
-    
+
+    AppState.user = getCurrentUser();
+    const role = getUserRole();
+
+    if (role === 'user') {
+        showUserDashboard();
+    } else {
+        showAdminDashboard();
+    }
+}
+
+/**
+ * Navigate to the admin (designer) dashboard
+ */
+function showAdminDashboard() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
     clearContainer();
     AppState.currentView = 'dashboard';
     AppState.user = getCurrentUser();
-    
+
     const container = getAppContainer();
     if (!container) return;
-    
-    // Get user's designs (getAllDesigns expects a username string)
+
     const username = AppState.user ? AppState.user.username : '';
     const userDesigns = getAllDesigns(username);
-    
-    // Create and render dashboard view
+
     const dashboardView = new DashboardView({
         onNewDesign: handleNewDesign,
         onOpenDesign: handleOpenDesign,
@@ -155,9 +177,190 @@ function showDashboard() {
         onLogout: handleLogout,
         onCompareDesigns: handleCompareDesigns
     });
-    
+
     dashboardView.render(container, userDesigns, username);
     AppState.viewInstance = dashboardView;
+}
+
+/**
+ * Navigate to the user (customer) dashboard
+ */
+function showUserDashboard() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'user-dashboard';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user ? AppState.user.username : '';
+    const fullName = AppState.user ? AppState.user.fullName : '';
+    const userDesigns = getAllDesigns(username);
+
+    const userDashboardView = new UserDashboardView({
+        onNewDesign: handleNewDesign,
+        onOpenDesign: handleOpenDesign,
+        onDeleteDesign: handleDeleteDesign,
+        onLogout: handleLogout,
+        onBrowseCatalogue: (category) => {
+            showCatalogue(category);
+        },
+        onViewCart: () => {
+            showCart();
+        }
+    });
+
+    userDashboardView.render(container, userDesigns, username, {
+        fullName,
+        cartCount: getCartCount(username)
+    });
+    AppState.viewInstance = userDashboardView;
+}
+
+/**
+ * Navigate to the furniture catalogue browser
+ * @param {string} [category='all'] - Initial category filter
+ */
+function showCatalogue(category = 'all') {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'catalogue';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user ? AppState.user.username : '';
+
+    const catalogueView = new CatalogueView({
+        onBack: () => showDashboard(),
+        onAddToCart: (furnitureType, price) => {
+            const success = addToCart(username, furnitureType, 1, price);
+            if (success) {
+                const count = getCartCount(username);
+                catalogueView.updateCartCount(count);
+                Toast.success('Added to cart');
+            } else {
+                Toast.error('Failed to add to cart');
+            }
+        },
+        onUseInDesign: (furnitureType) => {
+            AppState.pendingFurnitureType = furnitureType;
+            handleNewDesign();
+        },
+        onViewCart: () => {
+            showCart();
+        }
+    });
+
+    catalogueView.render(container, {
+        category: category || 'all',
+        cartCount: getCartCount(username)
+    });
+    AppState.viewInstance = catalogueView;
+}
+
+/**
+ * Navigate to the shopping cart page
+ */
+function showCart() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'cart';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user ? AppState.user.username : '';
+
+    const cartView = new CartView({
+        onBack: () => showDashboard(),
+        onContinueShopping: () => showCatalogue(),
+        onUpdateQuantity: (furnitureType, newQuantity) => {
+            updateCartQuantity(username, furnitureType, newQuantity);
+            cartView.refresh(getCart(username));
+        },
+        onRemoveItem: (furnitureType) => {
+            removeFromCart(username, furnitureType);
+            Toast.success('Item removed from cart');
+            cartView.refresh(getCart(username));
+        },
+        onClearCart: () => {
+            clearCart(username);
+            Toast.success('Cart cleared');
+            cartView.refresh(getCart(username));
+        },
+        onCheckout: () => {
+            showCheckout();
+        }
+    });
+
+    cartView.render(container, getCart(username));
+    AppState.viewInstance = cartView;
+}
+
+/**
+ * Navigate to the checkout page
+ */
+function showCheckout() {
+    if (!isLoggedIn()) {
+        showLanding();
+        return;
+    }
+
+    AppState.user = getCurrentUser();
+    const username = AppState.user ? AppState.user.username : '';
+    const cartItems = getCart(username);
+
+    if (cartItems.length === 0) {
+        Toast.info('Your cart is empty');
+        showCart();
+        return;
+    }
+
+    clearContainer();
+    AppState.currentView = 'checkout';
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const checkoutView = new CheckoutView({
+        onBack: () => showCart(),
+        onPlaceOrder: (deliveryDetails) => {
+            const subtotal = cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+            const deliveryFee = subtotal >= 500 ? 0 : 49.99;
+            const total = subtotal + deliveryFee;
+
+            const result = saveOrder(username, cartItems, total, deliveryDetails);
+            if (result.success) {
+                clearCart(username);
+            }
+            return result;
+        },
+        onContinueDesigning: () => showDashboard()
+    });
+
+    const userProfile = getUserByUsername(username);
+
+    checkoutView.render(container, cartItems, {
+        fullName: userProfile ? userProfile.fullName : (AppState.user ? AppState.user.fullName : ''),
+        email: userProfile ? userProfile.email : ''
+    });
+    AppState.viewInstance = checkoutView;
 }
 
 /**
@@ -361,6 +564,12 @@ function showEditor(designId) {
     
     editorView.render(container, design);
     AppState.viewInstance = editorView;
+
+    // Auto-start placing mode if a furniture type was pre-selected from catalogue
+    if (AppState.pendingFurnitureType) {
+        editorView.startPlacingFurniture(AppState.pendingFurnitureType);
+        AppState.pendingFurnitureType = null;
+    }
 }
 
 /**
@@ -453,6 +662,11 @@ export {
     showLogin,
     showRegister,
     showDashboard,
+    showAdminDashboard,
+    showUserDashboard,
+    showCatalogue,
+    showCart,
+    showCheckout,
     showEditor,
     showComparison,
     handleLogout,

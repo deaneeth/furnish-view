@@ -46,7 +46,9 @@ export const ROOM_SHAPES = {
 export const STORAGE_KEYS = {
     users: 'furnishview_users',
     designs: 'furnishview_designs',
-    session: 'furnishview_session'
+    session: 'furnishview_session',
+    cart: 'furnishview_cart',
+    orders: 'furnishview_orders'
 };
 
 /**
