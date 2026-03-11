@@ -5,6 +5,7 @@
 *.swo
 *~
 .github/
+.agents/
 
 # OS files
 .DS_Store

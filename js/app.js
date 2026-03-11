@@ -16,7 +16,7 @@ import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
 import { Modal } from './views/components/Modal.js';
 import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign } from './utils/storage.js';
-import { isLoggedIn, getCurrentUser, logout } from './auth/auth.js';
+import { isLoggedIn, getCurrentUser, logout, getUserRole } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
 import { Room } from './models/Room.js';
@@ -118,8 +118,9 @@ function showDashboard() {
     const container = getAppContainer();
     if (!container) return;
     
-    // Get user's designs
-    const userDesigns = getAllDesigns(AppState.user);
+    // Get user's designs (getAllDesigns expects a username string)
+    const username = AppState.user ? AppState.user.username : '';
+    const userDesigns = getAllDesigns(username);
     
     // Create and render dashboard view
     const dashboardView = new DashboardView({
@@ -130,7 +131,7 @@ function showDashboard() {
         onCompareDesigns: handleCompareDesigns
     });
     
-    dashboardView.render(container, userDesigns, AppState.user);
+    dashboardView.render(container, userDesigns, username);
     AppState.viewInstance = dashboardView;
 }
 
@@ -147,7 +148,7 @@ function handleNewDesign() {
             // Create Design with Room and current user
             const design = new Design({
                 name: formData.name,
-                designerName: AppState.user || '',
+                designerName: AppState.user ? AppState.user.username : '',
                 room: room,
                 furniture: []
             });
@@ -207,7 +208,8 @@ function handleCompareDesigns() {
         return;
     }
 
-    const designs = getAllDesigns(AppState.user);
+    const username = AppState.user ? AppState.user.username : '';
+    const designs = getAllDesigns(username);
     if (designs.length < 2) {
         Toast.info('You need at least 2 designs to compare');
         return;
