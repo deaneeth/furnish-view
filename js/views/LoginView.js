@@ -23,9 +23,11 @@ class LoginView {
      * Create a LoginView instance
      * @param {Object} options - View configuration
      * @param {Function} options.onLoginSuccess - Callback for successful login
+     * @param {Function} options.onSwitchToRegister - Callback to navigate to registration view
      */
-    constructor({ onLoginSuccess = () => {} } = {}) {
+    constructor({ onLoginSuccess = () => {}, onSwitchToRegister = () => {} } = {}) {
         this.onLoginSuccess = onLoginSuccess;
+        this.onSwitchToRegister = onSwitchToRegister;
         this.container = null;
         this.form = null;
         this.usernameInput = null;
@@ -108,7 +110,7 @@ class LoginView {
                     <footer class="login-footer">
                         <div class="login-footer-links">
                             <span class="login-footer-link">Forgot Password?</span><br>
-                            Don't have an account? <span class="login-footer-link login-footer-link--bold">Sign Up</span>
+                            Don't have an account? <button type="button" class="login-switch-link login-footer-link login-footer-link--bold" id="login-switch-register">Sign Up</button>
                         </div>
                     </footer>
                 </div>
@@ -160,6 +162,10 @@ class LoginView {
                 this.handleSubmit();
             }
         });
+
+        // Switch to registration view
+        const switchBtn = this.container?.querySelector('#login-switch-register');
+        switchBtn?.addEventListener('click', () => this.onSwitchToRegister());
     }
     
     /**
