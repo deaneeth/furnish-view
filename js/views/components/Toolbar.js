@@ -41,17 +41,20 @@ class Toolbar {
      * @param {Function} options.onUndo - Callback for undo action
      * @param {Function} options.onDelete - Callback for delete selected action
      * @param {Function} options.onExport - Callback for export as PNG action
+     * @param {Function} options.onAutoArrange - Callback for auto-arrange action
      */
     constructor({
         onFurnitureSelect = () => {},
         onUndo = () => {},
         onDelete = () => {},
-        onExport = () => {}
+        onExport = () => {},
+        onAutoArrange = () => {}
     } = {}) {
         this.onFurnitureSelect = onFurnitureSelect;
         this.onUndo = onUndo;
         this.onDelete = onDelete;
         this.onExport = onExport;
+        this.onAutoArrange = onAutoArrange;
         
         this.selectedType = null;
         this.container = null;
@@ -102,15 +105,25 @@ class Toolbar {
                             <span class="toolbar-btn-icon">🗑️</span>
                             <span class="toolbar-btn-label">Delete</span>
                         </button>
-                        <button 
-                            type="button" 
-                            class="toolbar-action-btn" 
+                        <button
+                            type="button"
+                            class="toolbar-action-btn"
                             data-action="export"
                             title="Export as PNG"
                             aria-label="Export design as PNG image"
                         >
                             <span class="toolbar-btn-icon">📷</span>
                             <span class="toolbar-btn-label">Export</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="toolbar-action-btn toolbar-action-arrange"
+                            data-action="auto-arrange"
+                            title="Auto Arrange Furniture"
+                            aria-label="Automatically arrange all furniture"
+                        >
+                            <span class="toolbar-btn-icon">✨</span>
+                            <span class="toolbar-btn-label">Arrange</span>
                         </button>
                     </div>
                 </div>
@@ -241,6 +254,9 @@ class Toolbar {
                 break;
             case 'export':
                 this.onExport();
+                break;
+            case 'auto-arrange':
+                this.onAutoArrange();
                 break;
         }
     }
