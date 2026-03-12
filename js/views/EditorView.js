@@ -233,7 +233,8 @@ class EditorView {
             onFurnitureSelect: (type) => this._handleFurnitureSelect(type),
             onUndo: () => this._handleUndo(),
             onDelete: () => this._handleDelete(),
-            onExport: () => this._handleExport()
+            onExport: () => this._handleExport(),
+            onAutoArrange: () => this._handleAutoArrange()
         });
         this.toolbar.render(this.toolbarContainer, furnitureCatalogue);
         
@@ -470,6 +471,30 @@ class EditorView {
         link.click();
 
         Toast.success(`Exported ${this.currentView.toUpperCase()} view as PNG`);
+    }
+
+    /**
+     * Handle auto-arrange action from toolbar.
+     *
+     * Delegates to CanvasController which runs the zone-based algorithm,
+     * animates items into position, and pushes onto the undo stack.
+     *
+     * @private
+     */
+    _handleAutoArrange() {
+        if (!this.design?.furniture?.length) {
+            Toast.info('Place some furniture first');
+            return;
+        }
+        if (this.currentView === '3d') {
+            Toast.info('Switch to 2D view to auto-arrange');
+            return;
+        }
+        if (this.canvasController?.autoArrange()) {
+            Toast.success('Furniture arranged');
+        } else {
+            Toast.info('Nothing to arrange');
+        }
     }
     
     /**

@@ -13,6 +13,7 @@ import { FurnitureItem } from '../models/FurnitureItem.js';
 import { Design } from '../models/Design.js';
 import { getFurnitureByType } from '../data/furnitureCatalogue.js';
 import { Toast } from '../views/components/Toast.js';
+import { autoArrangeFurniture } from '../utils/autoArrange.js';
 
 /**
  * Maximum number of undo states to store
@@ -687,7 +688,83 @@ class CanvasController {
         
         return removed;
     }
-    
+
+    /**
+     * Auto-arrange all furniture using zone-based heuristics.
+     *
+     * Saves current state for undo, computes a new layout via the
+     * autoArrange algorithm, then animates each item to its new position.
+     *
+     * @returns {boolean} True if arrangement was applied
+     */
+    autoArrange() {
+        if (!this.design || !this.design.room) return false;
+
+        const items = this.design.furniture;
+        if (!Array.isArray(items) || items.length === 0) return false;
+
+        const layoutMap = autoArrangeFurniture(this.design.room, items);
+        if (layoutMap.size === 0) return false;
+
+        // Save state for undo before modification
+        this._saveState();
+
+        // Capture old positions for animation
+        const startPositions = new Map();
+        for (const item of items) {
+            startPositions.set(item.id, {
+                x: item.x,
+                y: item.y,
+                rotation: item.rotation || 0
+            });
+        }
+
+        // Animate items to new positions over 400ms
+        const duration = 400;
+        const startTime = performance.now();
+
+        const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            // Ease-out cubic for smooth deceleration
+            const ease = 1 - Math.pow(1 - t, 3);
+
+            for (const item of items) {
+                const target = layoutMap.get(item.id);
+                const start = startPositions.get(item.id);
+                if (!target || !start) continue;
+
+                item.setPosition(
+                    start.x + (target.x - start.x) * ease,
+                    start.y + (target.y - start.y) * ease
+                );
+                item.setRotation(
+                    start.rotation + (target.rotation - start.rotation) * ease
+                );
+            }
+
+            this._render();
+
+            if (t < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // Ensure final positions are exact
+                for (const item of items) {
+                    const target = layoutMap.get(item.id);
+                    if (!target) continue;
+                    item.setPosition(target.x, target.y);
+                    item.setRotation(target.rotation);
+                }
+                this._render();
+                this._deselectAll();
+                this.onDesignChange();
+            }
+        };
+
+        requestAnimationFrame(animate);
+        return true;
+    }
+
     /**
      * Enter placing mode for a furniture type
      * @param {string} furnitureType - Type from furniture catalogue
