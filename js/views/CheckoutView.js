@@ -137,14 +137,21 @@ class CheckoutView {
                 </header>
 
                 <!-- Step Indicator -->
-                <nav class="ck-steps" aria-label="Checkout progress">
+                <nav class="ck-progress" aria-label="Checkout progress">
+                    <div class="ck-progress__track">
+                        <div class="ck-progress__fill" style="width:${this._currentStep === 0 ? '0%' : this._currentStep === 1 ? '50%' : '100%'}"></div>
+                    </div>
                     ${STEPS.map((s, i) => `
-                        <div class="ck-step ${i < this._currentStep ? 'ck-step--done' : ''} ${i === this._currentStep ? 'ck-step--active' : ''}">
-                            <span class="ck-step__num">${i < this._currentStep ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : (i + 1)}</span>
-                            <span class="ck-step__label">${s === 'delivery' ? 'Delivery' : s === 'payment' ? 'Payment' : 'Confirmation'}</span>
+                        <div class="ck-progress__step ${i < this._currentStep ? 'is-done' : ''} ${i === this._currentStep ? 'is-active' : ''}">
+                            <div class="ck-progress__node">
+                                ${i < this._currentStep
+                                    ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+                                    : `<span>${i + 1}</span>`
+                                }
+                            </div>
+                            <span class="ck-progress__label">${s === 'delivery' ? 'Delivery' : s === 'payment' ? 'Payment' : 'Confirm'}</span>
                         </div>
-                        ${i < STEPS.length - 1 ? '<div class="ck-step__line' + (i < this._currentStep ? ' ck-step__line--done' : '') + '"></div>' : ''}
-                    `).join('')}
+                    `).join('<div class="ck-progress__spacer"></div>')}
                 </nav>
 
                 <div class="ck-body">
@@ -156,6 +163,15 @@ class CheckoutView {
         `;
 
         this._attachEventListeners();
+
+        // Step enter animation
+        requestAnimationFrame(() => {
+            const content = this.container.querySelector('.ck-content');
+            if (content) {
+                content.classList.add('ck-content--enter');
+                requestAnimationFrame(() => content.classList.remove('ck-content--enter'));
+            }
+        });
     }
 
     // =========================================================================
