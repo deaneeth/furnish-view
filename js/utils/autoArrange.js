@@ -100,6 +100,17 @@ export function autoArrangeFurniture(room, items) {
     const placed = [];
     const result  = new Map();
 
+    // Wall-mounted items (doors/windows) keep their current position — skip them
+    const WALL_TYPES = new Set(['single-door', 'double-door', 'standard-window', 'tall-window', 'small-window']);
+    const floorItems = [];
+    for (const item of items) {
+        if (WALL_TYPES.has(item.type)) {
+            result.set(item.id, { x: item.x, y: item.y, rotation: item.rotation || 0 });
+        } else {
+            floorItems.push(item);
+        }
+    }
+
     // ── tryAt: place at (x,y) if collision-free. Returns pos or null. ─────
     function tryAt(item, x, y, rot = 0) {
         if (!item || result.has(item.id)) return null;
@@ -164,7 +175,7 @@ export function autoArrangeFurniture(room, items) {
 
     // ── Index items by type ───────────────────────────────────────────────
     const byType = {};
-    for (const i of items) (byType[i.type] = byType[i.type] || []).push(i);
+    for (const i of floorItems) (byType[i.type] = byType[i.type] || []).push(i);
     const first = t => (byType[t] || [])[0];
     const all   = t =>  byType[t] || [];
 
@@ -512,7 +523,7 @@ export function autoArrangeFurniture(room, items) {
     // PRIORITY 13 — REMAINING (anything not placed above)
     // Sorted largest-footprint-first, then zone-aware grid scan.
     // ═══════════════════════════════════════════════════════════════════
-    const unplaced = items.filter(i => !result.has(i.id));
+    const unplaced = floorItems.filter(i => !result.has(i.id));
     unplaced.sort((a, b) => (b.width * b.depth) - (a.width * a.depth));
 
     for (const item of unplaced) {
