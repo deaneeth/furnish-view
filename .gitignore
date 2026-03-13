@@ -32,6 +32,7 @@ switch-user.sh
 # Miscellaneous
 /requirements
 /video
+.claude/
 
 # Do NOT ignore:
 # - lib/three.min.js
