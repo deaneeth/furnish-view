@@ -37,6 +37,7 @@ export const MAX_ROOM_HEIGHT = 5;
  */
 export const ROOM_SHAPES = {
     RECTANGULAR: 'rectangular',
+    SQUARE: 'square',
     L_SHAPED: 'l-shaped'
 };
 
@@ -48,7 +49,10 @@ export const STORAGE_KEYS = {
     designs: 'furnishview_designs',
     session: 'furnishview_session',
     cart: 'furnishview_cart',
-    orders: 'furnishview_orders'
+    orders: 'furnishview_orders',
+    wishlist: 'furnishview_wishlist',
+    inventory: 'furnishview_inventory',
+    promotions: 'furnishview_promotions'
 };
 
 /**

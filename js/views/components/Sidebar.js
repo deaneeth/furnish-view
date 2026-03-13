@@ -357,10 +357,16 @@ class Sidebar {
             'dining-table':  '🍽️',
             'side-table':    '🪟',
             'sofa':          '🛋️',
+            'chaise':        '🛋️',
             'armchair':      '💺',
             'coffee-table':  '☕',
             'bookshelf':     '📚',
-            'desk':          '🖥️'
+            'desk':          '🖥️',
+            'floor-plant':   '🌿',
+            'table-plant':   '🪴',
+            'floor-lamp':    '🪔',
+            'table-lamp':    '💡',
+            'bedside-lamp':  '🔅'
         };
         return emojiMap[type] || '🪑';
     }

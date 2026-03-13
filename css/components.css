@@ -408,6 +408,27 @@
     gap: 2px;
 }
 
+.toolbar-category-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+}
+
+.toolbar-category-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #8E8E93;
+    padding: 6px 10px 2px;
+}
+
+.toolbar-category-group:first-child .toolbar-category-label {
+    padding-top: 0;
+}
+
 .toolbar-furniture-btn {
     display: flex;
     align-items: center;
@@ -2750,8 +2771,8 @@ body.modal-open {
 /* --- Quick Actions --- */
 .ud-quick-actions {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
     margin-bottom: 8px;
 }
 
@@ -2759,8 +2780,8 @@ body.modal-open {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    padding: 24px 16px;
+    gap: 8px;
+    padding: 18px 12px;
     background: #fff;
     border: 1px solid #E8E8ED;
     border-radius: 16px;
@@ -3231,12 +3252,18 @@ body.modal-open {
 
 .cat-card__footer {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5) var(--space-4);
     border-top: 1px solid #E8E8ED;
     background: #FAFAF8;
+}
+
+.cat-card__footer-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
 }
 
 .cat-card__price {
@@ -3249,6 +3276,12 @@ body.modal-open {
 .cat-card__actions {
     display: flex;
     gap: var(--space-2);
+    width: 100%;
+}
+
+.cat-card__actions .btn {
+    flex: 1;
+    justify-content: center;
 }
 
 /* --- Empty State (catalogue) --- */
@@ -3991,82 +4024,129 @@ body.modal-open {
     border-color: #D1D1D6;
 }
 
-/* --- Step Indicator --- */
-.ck-steps {
+/* --- Step Progress Indicator --- */
+.ck-progress {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     gap: 0;
     padding: var(--space-6) var(--space-6) var(--space-4);
     max-width: 520px;
     margin: 0 auto;
     width: 100%;
+    position: relative;
 }
 
-.ck-step {
+/* Background track across full width */
+.ck-progress__track {
+    position: absolute;
+    top: calc(var(--space-6) + 16px); /* center of the node circles */
+    left: calc(var(--space-6) + 40px);
+    right: calc(var(--space-6) + 40px);
+    height: 2px;
+    background: #E8E8ED;
+    border-radius: 2px;
+    overflow: hidden;
+}
+.ck-progress__fill {
+    height: 100%;
+    background: linear-gradient(90deg, #B8864E, #D4A76A);
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ck-progress__spacer {
+    flex: 1;
+}
+
+.ck-progress__step {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--space-2);
     position: relative;
     z-index: 1;
+    flex-shrink: 0;
 }
 
-.ck-step__num {
+.ck-progress__node {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-full);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
     border: 2px solid #E8E8ED;
     font-size: var(--text-sm);
-    font-weight: 600;
+    font-weight: 700;
     color: #A1A1A6;
     background: #fff;
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
 }
 
-.ck-step--active .ck-step__num {
-    border-color: #1D1D1F;
-    background: #1D1D1F;
+/* Active step pulse ring */
+.ck-progress__step.is-active .ck-progress__node::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid #B8864E;
+    opacity: 0;
+    animation: ck-ring-pulse 2s ease-out infinite;
+}
+@keyframes ck-ring-pulse {
+    0%   { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 0;   transform: scale(1.6); }
+}
+
+.ck-progress__step.is-active .ck-progress__node {
+    border-color: #B8864E;
+    background: #B8864E;
     color: #fff;
+    box-shadow: 0 0 0 4px rgba(184, 134, 78, 0.12);
 }
 
-.ck-step--done .ck-step__num {
+.ck-progress__step.is-done .ck-progress__node {
     border-color: #16A34A;
     background: #16A34A;
     color: #fff;
+    animation: ck-done-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes ck-done-pop {
+    0%   { transform: scale(0.7); opacity: 0.5; }
+    60%  { transform: scale(1.15); }
+    100% { transform: scale(1);   opacity: 1; }
 }
 
-.ck-step__label {
-    font-size: var(--text-xs);
+.ck-progress__label {
+    font-size: 11px;
     font-weight: 500;
     color: #A1A1A6;
     white-space: nowrap;
+    transition: color 0.3s;
 }
-
-.ck-step--active .ck-step__label {
-    color: #1D1D1F;
-    font-weight: 600;
+.ck-progress__step.is-active .ck-progress__label {
+    color: #B8864E;
+    font-weight: 700;
 }
-
-.ck-step--done .ck-step__label {
+.ck-progress__step.is-done .ck-progress__label {
     color: #16A34A;
 }
 
-.ck-step__line {
-    flex: 1;
-    height: 2px;
-    min-width: 40px;
-    background: #E8E8ED;
-    margin: 0 var(--space-2);
-    margin-bottom: 24px;
-    transition: background 0.3s ease;
+/* --- Step Content Enter Animation --- */
+.ck-content {
+    animation: ck-step-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-
-.ck-step__line--done {
-    background: #16A34A;
+@keyframes ck-step-enter {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+/* The class added briefly on re-render — just a trigger */
+.ck-content--enter {
+    animation: none;
+    opacity: 0;
+    transform: translateX(20px);
 }
 
 /* --- Checkout Body --- */
@@ -4229,7 +4309,11 @@ body.modal-open {
     flex-direction: column;
     justify-content: space-between;
     color: #fff;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.12);
+    transition: box-shadow 0.3s ease;
+}
+.ck-card-scene:hover .ck-card-face--front {
+    box-shadow: 0 20px 56px rgba(0, 0, 0, 0.28), 0 6px 16px rgba(0, 0, 0, 0.14);
 }
 
 .ck-card-face--front::before {
@@ -4387,11 +4471,19 @@ body.modal-open {
 .ck-order-summary {
     background: #fff;
     border: 1px solid #E8E8ED;
-    border-radius: var(--radius-md);
+    border-radius: 20px;
     padding: var(--space-5);
     position: sticky;
     top: 80px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 4px 24px rgba(0,0,0,.04);
+    scrollbar-width: thin;
+    scrollbar-color: #E8E8ED transparent;
 }
+.ck-order-summary::-webkit-scrollbar { width: 4px; }
+.ck-order-summary::-webkit-scrollbar-thumb { background: #E8E8ED; border-radius: 2px; }
 
 .ck-order-summary__title {
     font-size: var(--text-base);
@@ -4637,16 +4729,12 @@ body.modal-open {
         padding: 0 var(--space-4) var(--space-8);
     }
 
-    .ck-steps {
+    .ck-progress {
         padding: var(--space-4) var(--space-4) var(--space-3);
     }
 
-    .ck-step__label {
+    .ck-progress__label {
         display: none;
-    }
-
-    .ck-step__line {
-        margin-bottom: 0;
     }
 
     .ck-field-row,
@@ -5566,4 +5654,36 @@ body.modal-open {
         gap: 32px;
         text-align: center;
     }
+}
+
+/* ===== Mobile-friendly Form Improvements ===== */
+@media (max-width: 768px) {
+    .form-input, .form-select, .form-textarea {
+        font-size: 16px; /* Prevents iOS auto-zoom on input focus */
+        min-height: 44px;
+    }
+
+    .modal {
+        margin: 0;
+        border-radius: 20px 20px 0 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header { padding: 16px 20px 12px; }
+    .modal-body { padding: 0 20px 20px; }
+
+    .btn-group { flex-wrap: wrap; }
+    .btn { min-height: 44px; }
+}
+
+/* ===== Scroll behaviour ===== */
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
 }

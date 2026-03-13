@@ -24,6 +24,7 @@
 import { Modal } from './components/Modal.js';
 import { Toast } from './components/Toast.js';
 import { loadSampleData, getAllDesigns } from '../utils/storage.js';
+import { on } from '../utils/eventBus.js';
 
 /** Thumbnail canvas dimensions in pixels */
 const THUMB_WIDTH = 400;
@@ -149,7 +150,8 @@ class UserDashboardView {
         onDeleteDesign = () => {},
         onLogout = () => {},
         onBrowseCatalogue = () => {},
-        onViewCart = () => {}
+        onViewCart = () => {},
+        onViewOrders = () => {}
     } = {}) {
         this.onNewDesign = onNewDesign;
         this.onOpenDesign = onOpenDesign;
@@ -157,6 +159,7 @@ class UserDashboardView {
         this.onLogout = onLogout;
         this.onBrowseCatalogue = onBrowseCatalogue;
         this.onViewCart = onViewCart;
+        this.onViewOrders = onViewOrders;
         this.container = null;
         this.designs = [];
         this.username = '';
@@ -181,6 +184,31 @@ class UserDashboardView {
         this.username = escapeHtml(username || 'User');
         this.fullName = escapeHtml(fullName || username || 'User');
         this.cartCount = cartCount;
+
+        // Real-time cart badge update
+        if (!this._cartUnsub) {
+            this._cartUnsub = on('cart_changed', ({ username: u }) => {
+                if (u !== username) return;
+                this.cartCount = (this.cartCount || 0) + 1;
+                const badge = this.container && this.container.querySelector('.ud-cart-badge, .ud-cart-btn');
+                if (badge) {
+                    const existing = badge.classList.contains('ud-cart-badge')
+                        ? badge
+                        : badge.querySelector('.ud-cart-badge');
+                    if (existing) {
+                        existing.textContent = this.cartCount;
+                    } else {
+                        const btn = this.container.querySelector('.ud-cart-btn');
+                        if (btn) {
+                            const span = document.createElement('span');
+                            span.className = 'ud-cart-badge';
+                            span.textContent = this.cartCount;
+                            btn.appendChild(span);
+                        }
+                    }
+                }
+            });
+        }
 
         const hasDesigns = this.designs.length > 0;
         const designCountText = this.designs.length === 1
@@ -264,6 +292,12 @@ class UserDashboardView {
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                                 </span>
                                 <span class="ud-quick-action__label">View Cart</span>
+                            </button>
+                            <button type="button" class="ud-quick-action" id="ud-action-orders">
+                                <span class="ud-quick-action__icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
+                                </span>
+                                <span class="ud-quick-action__label">My Orders</span>
                             </button>
                         </div>
                     </section>
@@ -613,6 +647,7 @@ class UserDashboardView {
         this.container.querySelector('#ud-action-design')?.addEventListener('click', () => this.onNewDesign());
         this.container.querySelector('#ud-action-catalogue')?.addEventListener('click', () => this.onBrowseCatalogue());
         this.container.querySelector('#ud-action-cart')?.addEventListener('click', () => this.onViewCart());
+        this.container.querySelector('#ud-action-orders')?.addEventListener('click', () => this.onViewOrders());
 
         // Designs section
         this.container.querySelector('#ud-new-design-btn')?.addEventListener('click', () => this.onNewDesign());
@@ -690,6 +725,7 @@ class UserDashboardView {
      * Clean up the view and release references
      */
     destroy() {
+        if (this._cartUnsub) { this._cartUnsub(); this._cartUnsub = null; }
         this.container = null;
         this.designs = [];
     }

@@ -22,7 +22,7 @@
  * @module views/CartView
  */
 
-import { getFurnitureByType } from '../data/furnitureCatalogue.js';
+import { getFurnitureByType, furnitureCatalogue } from '../data/furnitureCatalogue.js';
 import { Toast } from './components/Toast.js';
 import { Modal } from './components/Modal.js';
 
@@ -97,7 +97,9 @@ class CartView {
         onUpdateQuantity = () => {},
         onRemoveItem = () => {},
         onClearCart = () => {},
-        onCheckout = () => {}
+        onCheckout = () => {},
+        onAddToCart = () => {},
+        username = ''
     } = {}) {
         this.onBack = onBack;
         this.onContinueShopping = onContinueShopping;
@@ -105,6 +107,8 @@ class CartView {
         this.onRemoveItem = onRemoveItem;
         this.onClearCart = onClearCart;
         this.onCheckout = onCheckout;
+        this.onAddToCart = onAddToCart;
+        this.username = username;
         this.container = null;
         this._cartItems = [];
     }
@@ -120,8 +124,62 @@ class CartView {
         this.container = container;
         this._cartItems = Array.isArray(cartItems) ? cartItems : [];
 
+        this._injectUpsellStyles();
         this._buildDOM();
         this._attachEventListeners();
+    }
+
+    /** @private */
+    _injectUpsellStyles() {
+        if (document.getElementById('cart-upsell-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'cart-upsell-styles';
+        style.textContent = `
+            .cart-upsell {
+                padding: 24px 20px;
+                max-width: 760px;
+                margin: 0 auto;
+            }
+            .cart-upsell__heading {
+                font-size: 16px;
+                font-weight: 700;
+                color: #1d1d1f;
+                margin: 0 0 14px;
+            }
+            .cart-upsell__row {
+                display: flex;
+                gap: 16px;
+                flex-wrap: wrap;
+            }
+            .cart-upsell-card {
+                background: #fff;
+                border: 1px solid #e8e8ed;
+                border-radius: 14px;
+                padding: 16px;
+                min-width: 160px;
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                text-align: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            }
+            .cart-upsell-card__icon {
+                color: #555;
+            }
+            .cart-upsell-card__name {
+                font-size: 13px;
+                font-weight: 600;
+                color: #1d1d1f;
+            }
+            .cart-upsell-card__price {
+                font-size: 14px;
+                font-weight: 700;
+                color: #0071e3;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     /**
@@ -278,11 +336,48 @@ class CartView {
     }
 
     /**
-     * Render the empty cart state
+     * Get recommended items for upsell: wishlist-based or first 3 catalogue items.
+     * @returns {Array} up to 3 catalogue items
+     * @private
+     */
+    _getRecommendedItems() {
+        try {
+            const wishlistKey = `fv_wishlist_${this.username}`;
+            const wishlistRaw = localStorage.getItem(wishlistKey);
+            if (wishlistRaw) {
+                const wishlist = JSON.parse(wishlistRaw);
+                if (Array.isArray(wishlist) && wishlist.length > 0) {
+                    const items = wishlist.slice(0, 3).map(type => furnitureCatalogue.find(c => c.type === type)).filter(Boolean);
+                    if (items.length > 0) return items;
+                }
+            }
+        } catch (e) { /* fallback */ }
+        return furnitureCatalogue.slice(0, 3);
+    }
+
+    /**
+     * Render the empty cart state with product upsell cards
      * @returns {string} HTML string
      * @private
      */
     _renderEmptyState() {
+        const recommended = this._getRecommendedItems();
+        const cardsHtml = recommended.map(item => {
+            const icon = CART_ICONS[item.icon] || CART_ICONS['chair'];
+            return `
+                <div class="cart-upsell-card">
+                    <div class="cart-upsell-card__icon" aria-hidden="true">${icon}</div>
+                    <div class="cart-upsell-card__name">${escapeHtml(item.label)}</div>
+                    <div class="cart-upsell-card__price">$${Number(item.price).toLocaleString('en-US')}</div>
+                    <button type="button" class="btn btn-sm btn-primary cart-upsell-add-btn"
+                        data-type="${escapeHtml(item.type)}"
+                        data-price="${item.price}">
+                        Add to Cart
+                    </button>
+                </div>
+            `;
+        }).join('');
+
         return `
             <div class="cart-empty">
                 <div class="empty-state">
@@ -301,6 +396,11 @@ class CartView {
                         Browse Catalogue
                     </button>
                 </div>
+                ${recommended.length > 0 ? `
+                <div class="cart-upsell">
+                    <h3 class="cart-upsell__heading">You might like</h3>
+                    <div class="cart-upsell__row">${cardsHtml}</div>
+                </div>` : ''}
             </div>
         `;
     }
@@ -326,6 +426,16 @@ class CartView {
         this.container.querySelector('#cart-continue-btn')?.addEventListener('click', () => this.onContinueShopping());
         this.container.querySelector('#cart-continue-link')?.addEventListener('click', () => this.onContinueShopping());
         this.container.querySelector('#cart-empty-browse-btn')?.addEventListener('click', () => this.onContinueShopping());
+
+        // Upsell add-to-cart buttons (empty state)
+        this.container.querySelectorAll('.cart-upsell-add-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.dataset.type;
+                const price = Number(btn.dataset.price) || 0;
+                this.onAddToCart(type, price);
+                Toast.success('Added to cart');
+            });
+        });
 
         // Checkout
         this.container.querySelector('#cart-checkout-btn')?.addEventListener('click', () => this.onCheckout());
