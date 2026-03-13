@@ -15,6 +15,7 @@
 
 import { Design } from '../models/Design.js';
 import { STORAGE_KEYS } from './constants.js';
+import { emit } from './eventBus.js';
 
 /**
  * Maximum storage size warning threshold (4MB)
@@ -346,7 +347,9 @@ function registerUser(username, password, role, fullName, email) {
     if (!saved) {
         return { success: false, message: 'Failed to save user data', user: null };
     }
-    
+
+    emit('user_registered', { username: newUser.username, role: newUser.role });
+
     // Return public profile (no password)
     return {
         success: true,
@@ -753,7 +756,9 @@ function addToCart(username, furnitureType, quantity = 1, price = 0) {
         cart.push({ type: furnitureType, quantity, price: Number(price) || 0 });
     }
 
-    return saveCart(username, cart);
+    const result = saveCart(username, cart);
+    if (result) emit('cart_changed', { username: username.trim().toLowerCase() });
+    return result;
 }
 
 /**
@@ -879,6 +884,11 @@ function saveOrder(username, items, total, deliveryDetails) {
     allOrders.push(order);
 
     const saved = safeSetItem(STORAGE_KEYS.orders, JSON.stringify(allOrders));
+    if (saved) {
+        decrementStock(items);
+        emit('order_created', { orderId, username: order.username, total: order.total, itemCount: items.length });
+        emit('inventory_changed', {});
+    }
     return saved ? { success: true, orderId } : { success: false, orderId: null };
 }
 
@@ -895,6 +905,191 @@ function getOrders(username) {
     return allOrders
         .filter(o => o.username === key)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+// ============================================================================
+// INVENTORY MANAGEMENT
+// ============================================================================
+
+/**
+ * Initialize inventory from catalogue default stock levels.
+ * Only sets up inventory if it doesn't already exist.
+ * @param {Array} catalogue - Furniture catalogue array with stock field
+ */
+function initializeInventory(catalogue) {
+    const existing = safeGetItem(STORAGE_KEYS.inventory);
+    if (existing) return;
+    const inventory = {};
+    catalogue.forEach(item => { inventory[item.type] = item.stock ?? 20; });
+    safeSetItem(STORAGE_KEYS.inventory, JSON.stringify(inventory));
+}
+
+/**
+ * Get stock level for a furniture type.
+ * @param {string} type - Furniture type ID
+ * @returns {number} Stock count
+ */
+function getStock(type) {
+    const inv = safeJSONParse(safeGetItem(STORAGE_KEYS.inventory), {});
+    return typeof inv[type] === 'number' ? inv[type] : 999;
+}
+
+/**
+ * Get full inventory object.
+ * @returns {Object} Map of type -> stock count
+ */
+function getInventory() {
+    return safeJSONParse(safeGetItem(STORAGE_KEYS.inventory), {});
+}
+
+/**
+ * Update stock level for a furniture type.
+ * @param {string} type - Furniture type ID
+ * @param {number} quantity - New stock level
+ * @returns {boolean} Success
+ */
+function setStock(type, quantity) {
+    const inv = safeJSONParse(safeGetItem(STORAGE_KEYS.inventory), {});
+    inv[type] = Math.max(0, Number(quantity) || 0);
+    const saved = safeSetItem(STORAGE_KEYS.inventory, JSON.stringify(inv));
+    if (saved) emit('inventory_changed', { type, newStock: inv[type] });
+    return saved;
+}
+
+/**
+ * Decrement stock for multiple items (called on order placement).
+ * @param {Array<{type: string, quantity: number}>} items
+ * @returns {boolean} Success
+ */
+function decrementStock(items) {
+    if (!Array.isArray(items)) return false;
+    const inv = safeJSONParse(safeGetItem(STORAGE_KEYS.inventory), {});
+    items.forEach(({ type, quantity }) => {
+        if (typeof inv[type] === 'number') {
+            inv[type] = Math.max(0, inv[type] - quantity);
+        }
+    });
+    return safeSetItem(STORAGE_KEYS.inventory, JSON.stringify(inv));
+}
+
+/**
+ * Check if all cart items have sufficient stock.
+ * @param {Array<{type: string, quantity: number}>} items
+ * @returns {Array<string>} Array of type IDs that are out of stock
+ */
+function checkStockAvailability(items) {
+    if (!Array.isArray(items)) return [];
+    const inv = safeJSONParse(safeGetItem(STORAGE_KEYS.inventory), {});
+    return items
+        .filter(({ type, quantity }) => (inv[type] ?? 999) < quantity)
+        .map(i => i.type);
+}
+
+// ============================================================================
+// WISHLIST MANAGEMENT
+// ============================================================================
+
+/**
+ * Get wishlist for a user.
+ * @param {string} username
+ * @returns {Array<string>} Array of furniture type IDs
+ */
+function getWishlist(username) {
+    if (!username) return [];
+    const all = safeJSONParse(safeGetItem(STORAGE_KEYS.wishlist), {});
+    const key = username.trim().toLowerCase();
+    return Array.isArray(all[key]) ? all[key] : [];
+}
+
+/**
+ * Add a furniture type to user's wishlist.
+ * @param {string} username
+ * @param {string} type - Furniture type ID
+ * @returns {boolean} Success
+ */
+function addToWishlist(username, type) {
+    if (!username || !type) return false;
+    const all = safeJSONParse(safeGetItem(STORAGE_KEYS.wishlist), {});
+    const key = username.trim().toLowerCase();
+    const list = Array.isArray(all[key]) ? all[key] : [];
+    if (!list.includes(type)) list.push(type);
+    all[key] = list;
+    return safeSetItem(STORAGE_KEYS.wishlist, JSON.stringify(all));
+}
+
+/**
+ * Remove a furniture type from user's wishlist.
+ * @param {string} username
+ * @param {string} type
+ * @returns {boolean} Success
+ */
+function removeFromWishlist(username, type) {
+    if (!username || !type) return false;
+    const all = safeJSONParse(safeGetItem(STORAGE_KEYS.wishlist), {});
+    const key = username.trim().toLowerCase();
+    const list = Array.isArray(all[key]) ? all[key] : [];
+    all[key] = list.filter(t => t !== type);
+    return safeSetItem(STORAGE_KEYS.wishlist, JSON.stringify(all));
+}
+
+/**
+ * Toggle a furniture type in the wishlist.
+ * @param {string} username
+ * @param {string} type
+ * @returns {{ inWishlist: boolean }} New state
+ */
+function toggleWishlist(username, type) {
+    const list = getWishlist(username);
+    if (list.includes(type)) {
+        removeFromWishlist(username, type);
+        return { inWishlist: false };
+    } else {
+        addToWishlist(username, type);
+        return { inWishlist: true };
+    }
+}
+
+/**
+ * Check if type is in user's wishlist.
+ * @param {string} username
+ * @param {string} type
+ * @returns {boolean}
+ */
+function isInWishlist(username, type) {
+    return getWishlist(username).includes(type);
+}
+
+// ============================================================================
+// ADMIN ORDER MANAGEMENT
+// ============================================================================
+
+/**
+ * Get ALL orders across all users (admin only).
+ * @returns {Array<Object>} All orders sorted newest first
+ */
+function getAllOrders() {
+    const allOrders = safeJSONParse(safeGetItem(STORAGE_KEYS.orders), []);
+    return allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+/**
+ * Update the status of an order.
+ * Valid statuses: 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'
+ * @param {string} orderId - Order ID
+ * @param {string} status - New status
+ * @returns {boolean} Success
+ */
+function updateOrderStatus(orderId, status) {
+    const validStatuses = ['confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) return false;
+    const allOrders = safeJSONParse(safeGetItem(STORAGE_KEYS.orders), []);
+    const order = allOrders.find(o => o.orderId === orderId);
+    if (!order) return false;
+    order.status = status;
+    order.updatedAt = new Date().toISOString();
+    const saved = safeSetItem(STORAGE_KEYS.orders, JSON.stringify(allOrders));
+    if (saved) emit('order_updated', { orderId, status });
+    return saved;
 }
 
 // ============================================================================
@@ -946,6 +1141,25 @@ export {
     // Order management
     saveOrder,
     getOrders,
+
+    // Inventory management
+    initializeInventory,
+    getStock,
+    getInventory,
+    setStock,
+    decrementStock,
+    checkStockAvailability,
+
+    // Wishlist management
+    getWishlist,
+    addToWishlist,
+    removeFromWishlist,
+    toggleWishlist,
+    isInWishlist,
+
+    // Admin order management
+    getAllOrders,
+    updateOrderStatus,
 
     // Constants (re-exported for convenience)
     MAX_DESIGNS_PER_USER
