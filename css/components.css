@@ -408,6 +408,27 @@
     gap: 2px;
 }
 
+.toolbar-category-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+}
+
+.toolbar-category-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #8E8E93;
+    padding: 6px 10px 2px;
+}
+
+.toolbar-category-group:first-child .toolbar-category-label {
+    padding-top: 0;
+}
+
 .toolbar-furniture-btn {
     display: flex;
     align-items: center;
@@ -2750,8 +2771,8 @@ body.modal-open {
 /* --- Quick Actions --- */
 .ud-quick-actions {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
     margin-bottom: 8px;
 }
 
@@ -2759,8 +2780,8 @@ body.modal-open {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    padding: 24px 16px;
+    gap: 8px;
+    padding: 18px 12px;
     background: #fff;
     border: 1px solid #E8E8ED;
     border-radius: 16px;
@@ -3231,12 +3252,18 @@ body.modal-open {
 
 .cat-card__footer {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5) var(--space-4);
     border-top: 1px solid #E8E8ED;
     background: #FAFAF8;
+}
+
+.cat-card__footer-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
 }
 
 .cat-card__price {
@@ -3249,6 +3276,12 @@ body.modal-open {
 .cat-card__actions {
     display: flex;
     gap: var(--space-2);
+    width: 100%;
+}
+
+.cat-card__actions .btn {
+    flex: 1;
+    justify-content: center;
 }
 
 /* --- Empty State (catalogue) --- */
@@ -4442,8 +4475,15 @@ body.modal-open {
     padding: var(--space-5);
     position: sticky;
     top: 80px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     box-shadow: 0 4px 24px rgba(0,0,0,.04);
+    scrollbar-width: thin;
+    scrollbar-color: #E8E8ED transparent;
 }
+.ck-order-summary::-webkit-scrollbar { width: 4px; }
+.ck-order-summary::-webkit-scrollbar-thumb { background: #E8E8ED; border-radius: 2px; }
 
 .ck-order-summary__title {
     font-size: var(--text-base);
@@ -5614,4 +5654,36 @@ body.modal-open {
         gap: 32px;
         text-align: center;
     }
+}
+
+/* ===== Mobile-friendly Form Improvements ===== */
+@media (max-width: 768px) {
+    .form-input, .form-select, .form-textarea {
+        font-size: 16px; /* Prevents iOS auto-zoom on input focus */
+        min-height: 44px;
+    }
+
+    .modal {
+        margin: 0;
+        border-radius: 20px 20px 0 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header { padding: 16px 20px 12px; }
+    .modal-body { padding: 0 20px 20px; }
+
+    .btn-group { flex-wrap: wrap; }
+    .btn { min-height: 44px; }
+}
+
+/* ===== Scroll behaviour ===== */
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
 }
