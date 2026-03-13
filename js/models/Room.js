@@ -22,7 +22,7 @@ import {
  * Valid room shapes
  * @type {Set<string>}
  */
-const VALID_SHAPES = new Set([ROOM_SHAPES.RECTANGULAR, ROOM_SHAPES.L_SHAPED]);
+const VALID_SHAPES = new Set([ROOM_SHAPES.RECTANGULAR, ROOM_SHAPES.SQUARE, ROOM_SHAPES.L_SHAPED]);
 
 /**
  * Validate that a value is a positive number within range

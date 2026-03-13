@@ -833,7 +833,14 @@ class Renderer2D {
         }
         
         // Draw type-specific shape centred at origin
-        this._drawFurnitureShape(-scaledWidth / 2, -scaledDepth / 2, scaledWidth, scaledDepth, item);
+        // Left/right wall items have swapped width/depth for bounding box;
+        // swap back for shape methods so they draw the natural orientation
+        let drawW = scaledWidth, drawH = scaledDepth;
+        if (item.wall === 'left' || item.wall === 'right') {
+            drawW = scaledDepth;
+            drawH = scaledWidth;
+        }
+        this._drawFurnitureShape(-drawW / 2, -drawH / 2, drawW, drawH, item);
         
         ctx.restore();
     }
@@ -874,6 +881,9 @@ class Renderer2D {
             case 'armchair':
                 this._drawArmchairShape(x, y, w, h, fillColour, strokeColour);
                 break;
+            case 'chaise':
+                this._drawChaiseShape(x, y, w, h, fillColour, strokeColour);
+                break;
             case 'coffee-table':
                 this._drawCoffeeTableShape(x, y, w, h, fillColour, strokeColour);
                 break;
@@ -894,6 +904,32 @@ class Renderer2D {
                 break;
             case 'rug':
                 this._drawRugShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'floor-plant':
+                this._drawFloorPlantShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'table-plant':
+                this._drawTablePlantShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'floor-lamp':
+                this._drawFloorLampShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'table-lamp':
+                this._drawTableLampShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'bedside-lamp':
+                this._drawBedsideLampShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'single-door':
+                this._drawSingleDoorShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'double-door':
+                this._drawDoubleDoorShape(x, y, w, h, fillColour, strokeColour);
+                break;
+            case 'standard-window':
+            case 'tall-window':
+            case 'small-window':
+                this._drawWindowShape(x, y, w, h, fillColour, strokeColour);
                 break;
             default:
                 this._drawDefaultShape(x, y, w, h, fillColour, strokeColour);
@@ -1065,7 +1101,50 @@ class Renderer2D {
         this._drawRoundedRect(x + w - armW, y + backH, armW, h - backH, r * 0.4);
         ctx.fill();
     }
-    
+
+    /**
+     * Draw chaise lounge silhouette: elongated seat with one raised end.
+     * Asymmetric shape — tall panel on left, low arm on right, back band along top.
+     *
+     * @param {number} x - Top-left X
+     * @param {number} y - Top-left Y
+     * @param {number} w - Width
+     * @param {number} h - Height
+     * @param {string} fill - Fill colour
+     * @param {string} stroke - Stroke colour
+     * @private
+     */
+    _drawChaiseShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const r = Math.min(w, h) * 0.08;
+        const raisedW = Math.max(3, w * 0.14);
+        const lowArmW = Math.max(2, w * 0.08);
+        const backH = Math.max(2, h * 0.18);
+
+        // Main seat area
+        ctx.fillStyle = fill;
+        this._drawRoundedRect(x, y, w, h, r);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = RENDER_CONFIG.FURNITURE_BORDER_WIDTH;
+        ctx.stroke();
+
+        // Back cushion band along top
+        ctx.fillStyle = stroke;
+        this._drawRoundedRect(x + raisedW, y, w - raisedW - lowArmW, backH, r * 0.5);
+        ctx.fill();
+
+        // Raised end (left — taller/wider)
+        ctx.fillStyle = this._darkenHex(fill, 0.18);
+        this._drawRoundedRect(x, y, raisedW, h, r * 0.5);
+        ctx.fill();
+
+        // Low arm (right — shorter/thinner)
+        ctx.fillStyle = this._darkenHex(fill, 0.1);
+        this._drawRoundedRect(x + w - lowArmW, y + backH, lowArmW, h - backH, r * 0.3);
+        ctx.fill();
+    }
+
     /**
      * Draw armchair silhouette: squarer proportions, seat + back + armrests.
      * 
@@ -1380,6 +1459,306 @@ class Renderer2D {
     }
     
     /**
+     * Draw floor plant silhouette: circular pot base + leaf canopy ring.
+     * @private
+     */
+    _drawFloorPlantShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const potR = Math.min(w, h) * 0.3;
+        const canopyR = Math.min(w, h) * 0.48;
+
+        // Leaf canopy
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, canopyR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Inner pot circle
+        const potFill = this._darkenHex(fill, 0.5);
+        ctx.fillStyle = potFill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, potR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    /**
+     * Draw table plant silhouette: small circle pot + subtle leaf ring.
+     * @private
+     */
+    _drawTablePlantShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const potR = Math.min(w, h) * 0.28;
+        const canopyR = Math.min(w, h) * 0.45;
+
+        // Leaf canopy
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, canopyR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Pot
+        ctx.fillStyle = '#E8DED0';
+        ctx.beginPath();
+        ctx.arc(cx, cy, potR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    /**
+     * Draw floor lamp silhouette: base circle + pole line + shade circle.
+     * @private
+     */
+    _drawFloorLampShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const baseR = Math.min(w, h) * 0.35;
+        const shadeR = Math.min(w, h) * 0.25;
+
+        // Base circle
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Shade indicator (offset circle for arc lamp)
+        ctx.fillStyle = '#FAF3E6';
+        ctx.beginPath();
+        ctx.arc(cx + w * 0.15, cy, shadeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Light glow dot
+        ctx.fillStyle = '#FFE4B5';
+        ctx.beginPath();
+        ctx.arc(cx + w * 0.15, cy, shadeR * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    /**
+     * Draw table lamp silhouette: small base circle + shade circle.
+     * @private
+     */
+    _drawTableLampShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const shadeR = Math.min(w, h) * 0.42;
+        const baseR = Math.min(w, h) * 0.2;
+
+        // Shade circle (tapered shade from top-down)
+        ctx.fillStyle = '#FAF3E6';
+        ctx.beginPath();
+        ctx.arc(cx, cy, shadeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Base circle
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Glow dot
+        ctx.fillStyle = '#FFE4B5';
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseR * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    /**
+     * Draw bedside lamp silhouette: small round base + frosted globe.
+     * @private
+     */
+    _drawBedsideLampShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const globeR = Math.min(w, h) * 0.4;
+        const baseR = Math.min(w, h) * 0.22;
+
+        // Globe
+        ctx.fillStyle = '#FFF8F0';
+        ctx.globalAlpha = 0.75;
+        ctx.beginPath();
+        ctx.arc(cx, cy, globeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Base
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Warm glow dot
+        ctx.fillStyle = '#FFE4B5';
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseR * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ── Door & Window architectural plan symbols ─────────────────────
+
+    /**
+     * Draw single door: panel rectangle + quarter-circle swing arc.
+     * Standard architectural plan symbol.
+     */
+    _drawSingleDoorShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const panelW = w;
+        const panelH = h;
+
+        // Door panel (thin rectangle)
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, panelW, panelH);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, panelW, panelH);
+
+        // Handle dot
+        const handleR = Math.max(1.5, w * 0.04);
+        ctx.fillStyle = '#888';
+        ctx.beginPath();
+        ctx.arc(x + panelW * 0.85, y + panelH / 2, handleR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Door swing arc (quarter circle, dashed)
+        ctx.save();
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        // Arc pivots from bottom-left corner of the door, swings downward
+        ctx.arc(x, y + panelH, panelW, -Math.PI / 2, 0);
+        ctx.stroke();
+        // Swing line from pivot to arc end
+        ctx.beginPath();
+        ctx.moveTo(x, y + panelH);
+        ctx.lineTo(x + panelW, y + panelH);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    /**
+     * Draw double door: two panels + two opposing quarter-circle swing arcs.
+     */
+    _drawDoubleDoorShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const halfW = w / 2;
+
+        // Left panel
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, halfW, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, halfW, h);
+
+        // Right panel
+        ctx.fillRect(x + halfW, y, halfW, h);
+        ctx.strokeRect(x + halfW, y, halfW, h);
+
+        // Centre divider
+        ctx.beginPath();
+        ctx.moveTo(x + halfW, y);
+        ctx.lineTo(x + halfW, y + h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Handle dots
+        const handleR = Math.max(1.5, w * 0.025);
+        ctx.fillStyle = '#888';
+        ctx.beginPath();
+        ctx.arc(x + halfW - halfW * 0.15, y + h / 2, handleR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + halfW + halfW * 0.15, y + h / 2, handleR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Swing arcs (dashed)
+        ctx.save();
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        // Left door swings down from right-hinge (pivot at x, y+h)
+        ctx.beginPath();
+        ctx.arc(x, y + h, halfW, -Math.PI / 2, 0);
+        ctx.stroke();
+        // Right door swings down from left-hinge (pivot at x+w, y+h)
+        ctx.beginPath();
+        ctx.arc(x + w, y + h, halfW, -Math.PI, -Math.PI / 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    /**
+     * Draw window: three parallel lines (wall–glass–wall) — standard plan symbol.
+     * Used for standard-window, tall-window, small-window.
+     */
+    _drawWindowShape(x, y, w, h, fill, stroke) {
+        const ctx = this.ctx;
+        const lineSpacing = h / 4;
+
+        // Wall opening (background)
+        ctx.fillStyle = '#E3F2FD';
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
+
+        // Three horizontal lines across the window width
+        ctx.strokeStyle = '#1565C0';
+        ctx.lineWidth = 1.5;
+        for (let i = 1; i <= 3; i++) {
+            const ly = y + lineSpacing * i;
+            ctx.beginPath();
+            ctx.moveTo(x, ly);
+            ctx.lineTo(x + w, ly);
+            ctx.stroke();
+        }
+
+        // Diagonal glass indicator
+        ctx.strokeStyle = '#90CAF9';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(x, y + h);
+        ctx.lineTo(x + w, y);
+        ctx.stroke();
+    }
+
+    /**
      * Draw default furniture silhouette: plain filled rectangle.
      * Used as fallback for unknown furniture types.
      * 
@@ -1491,6 +1870,7 @@ class Renderer2D {
             'dining-table': 'DT',
             'side-table': 'ST',
             'sofa': 'SF',
+            'chaise': 'CL',
             'armchair': 'AC',
             'coffee-table': 'CT',
             'bookshelf': 'BS',
@@ -1498,7 +1878,12 @@ class Renderer2D {
             'tv-stand': 'TV',
             'bed': 'BD',
             'wardrobe': 'WR',
-            'rug': 'RG'
+            'rug': 'RG',
+            'floor-plant': 'FP',
+            'table-plant': 'TP',
+            'floor-lamp': 'FL',
+            'table-lamp': 'TL',
+            'bedside-lamp': 'BL'
         };
         return abbreviations[type] || type.charAt(0).toUpperCase();
     }
@@ -1719,8 +2104,13 @@ class Renderer2D {
         if (!this.ctx || !item) return;
 
         const ctx = this.ctx;
-        const widthM = (item.width || 0).toFixed(1);
-        const depthM = (item.depth || 0).toFixed(1);
+        // For left/right wall items, width/depth are swapped for bounding box —
+        // show the natural (larger × smaller) order for the label
+        const isVertWall = item.wall === 'left' || item.wall === 'right';
+        const labelW = isVertWall ? item.depth : item.width;
+        const labelD = isVertWall ? item.width : item.depth;
+        const widthM = (labelW || 0).toFixed(1);
+        const depthM = (labelD || 0).toFixed(1);
         const dimText = `${widthM}m \u00d7 ${depthM}m`;
 
         ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
@@ -1782,38 +2172,49 @@ class Renderer2D {
      */
     _drawGhostPreview() {
         if (!this.ctx || !this.ghostPreview || !this.room) return;
-        
+
         const ctx = this.ctx;
         const preview = this.ghostPreview;
-        
+
         // Get canvas position from world position
         const pos = this.worldToCanvas(preview.x, preview.y);
-        
+
         // Scale furniture dimensions
         const scaledWidth = this.scaleSize(preview.width);
         const scaledDepth = this.scaleSize(preview.depth);
-        
+
         ctx.save();
-        
+
         // Set transparency for ghost effect
         ctx.globalAlpha = 0.5;
-        
+
         // Translate to centre for consistent shape rendering
         ctx.translate(pos.x + scaledWidth / 2, pos.y + scaledDepth / 2);
-        
+
+        // Apply rotation if provided (wall items have rotation from wall-snap)
+        if (preview.rotation) {
+            ctx.rotate((preview.rotation * Math.PI) / 180);
+        }
+
         // Draw type-specific silhouette as ghost
+        // Left/right wall items: swap draw dimensions back to natural orientation
+        let drawW = scaledWidth, drawH = scaledDepth;
+        if (preview.wall === 'left' || preview.wall === 'right') {
+            drawW = scaledDepth;
+            drawH = scaledWidth;
+        }
         this._drawFurnitureShape(
-            -scaledWidth / 2, -scaledDepth / 2,
-            scaledWidth, scaledDepth,
+            -drawW / 2, -drawH / 2,
+            drawW, drawH,
             preview
         );
-        
-        // Dashed selection border overlay
-        ctx.strokeStyle = RENDER_COLOURS.SELECTION;
+
+        // Dashed selection border — red if invalid placement, blue otherwise
+        ctx.strokeStyle = preview.invalid ? '#EF4444' : RENDER_COLOURS.SELECTION;
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(-scaledWidth / 2, -scaledDepth / 2, scaledWidth, scaledDepth);
-        
+
         ctx.restore();
     }
     

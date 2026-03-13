@@ -109,7 +109,8 @@ class FurnitureItem {
         depth = 0.5,
         height = 0.85,
         colour = '#5C4033',
-        rotation = 0
+        rotation = 0,
+        wall = null
     } = {}) {
         // Generate unique ID if not provided, or validate existing ID
         this.id = (typeof id === 'string' && id.length > 0) ? validateString(id, generateId(), 100) : generateId();
@@ -131,6 +132,9 @@ class FurnitureItem {
         
         // Normalize rotation to 0-360 range
         this.rotation = normalizeRotation(rotation);
+
+        // Wall attachment ('top'|'right'|'bottom'|'left'|null)
+        this.wall = (typeof wall === 'string' && ['top', 'right', 'bottom', 'left'].includes(wall)) ? wall : null;
     }
     
     /**
@@ -206,7 +210,8 @@ class FurnitureItem {
             depth: this.depth,
             height: this.height,
             colour: this.colour,
-            rotation: this.rotation
+            rotation: this.rotation,
+            wall: this.wall
         });
     }
     
@@ -215,7 +220,7 @@ class FurnitureItem {
      * @returns {Object} Plain object representation
      */
     toJSON() {
-        return {
+        const json = {
             id: this.id,
             type: this.type,
             x: this.x,
@@ -226,6 +231,8 @@ class FurnitureItem {
             colour: this.colour,
             rotation: this.rotation
         };
+        if (this.wall) json.wall = this.wall;
+        return json;
     }
     
     /**
