@@ -288,3 +288,118 @@ html {
 .font-medium { font-weight: 500; }
 .font-semibold { font-weight: 600; }
 .font-bold { font-weight: 700; }
+
+/* ===========================
+   Accessibility Improvements
+   =========================== */
+
+/* Focus ring — visible for keyboard users, hidden for mouse users */
+:focus-visible {
+    outline: 2px solid var(--primary, #5E5CE6);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Remove outline for mouse/touch clicks */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Skip to main content link */
+.skip-to-main {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    z-index: 9999;
+}
+
+.skip-to-main:focus {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: auto;
+    height: auto;
+    padding: 12px 20px;
+    background: var(--primary, #5E5CE6);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* High contrast mode support */
+@media (forced-colors: active) {
+    .btn { border: 1px solid ButtonText; }
+    .card { border: 1px solid CanvasText; }
+}
+
+/* Typography scale improvements for small screens */
+@media (max-width: 480px) {
+    :root {
+        --text-xs: 11px;
+        --text-sm: 12px;
+        --text-base: 14px;
+        --text-lg: 16px;
+        --text-xl: 18px;
+    }
+}
+
+/* Touch device improvements */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger tap targets */
+    button, a, [role="button"] {
+        min-height: 44px;
+    }
+
+    /* Remove hover effects that feel broken on touch */
+    .btn:hover { background: initial; }
+    .card:hover { transform: none; box-shadow: initial; }
+}
+
+/* ===========================
+   Currency Switcher
+   =========================== */
+.currency-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border: 1px solid var(--border, #E8E8ED);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #86868B);
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.currency-switcher:hover {
+    border-color: var(--primary, #5E5CE6);
+    color: var(--primary, #5E5CE6);
+}
+
+.currency-option {
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    border-radius: 6px;
+    transition: background 0.1s;
+}
+
+.currency-option:hover { background: var(--bg, #F5F5F7); }
+.currency-option.active { font-weight: 700; color: var(--primary, #5E5CE6); }
