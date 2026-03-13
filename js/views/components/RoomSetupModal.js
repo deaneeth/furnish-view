@@ -228,6 +228,17 @@ const RoomSetupModal = {
                             <div class="form-hint">Select a preset to auto-fill dimensions and colours</div>
                         </div>
                         
+                        <!-- Measurement Guide (collapsible) -->
+                        <details class="measure-guide">
+                            <summary class="measure-guide__toggle">📐 Room Measurement Guide</summary>
+                            <div class="measure-guide__body">
+                                <p class="measure-guide__intro">Use a tape measure from wall to wall. Here's what fits in your space:</p>
+                                <ul class="measure-guide__list" id="measure-guide-list">
+                                    <!-- dynamically filled -->
+                                </ul>
+                            </div>
+                        </details>
+
                         <!-- Dimensions Row -->
                         <div class="form-row form-row-3">
                             <div class="form-group">
@@ -283,11 +294,11 @@ const RoomSetupModal = {
                         <div class="form-group">
                             <label class="form-label">Room Shape <span class="required">*</span></label>
                             <div class="shape-toggle">
-                                <input 
-                                    type="radio" 
-                                    id="shape-rectangular" 
-                                    name="shape" 
-                                    value="${ROOM_SHAPES.RECTANGULAR}" 
+                                <input
+                                    type="radio"
+                                    id="shape-rectangular"
+                                    name="shape"
+                                    value="${ROOM_SHAPES.RECTANGULAR}"
                                     checked
                                 >
                                 <label for="shape-rectangular" class="shape-option">
@@ -296,11 +307,24 @@ const RoomSetupModal = {
                                     </svg>
                                     Rectangular
                                 </label>
-                                
-                                <input 
-                                    type="radio" 
-                                    id="shape-l-shaped" 
-                                    name="shape" 
+
+                                <input
+                                    type="radio"
+                                    id="shape-square"
+                                    name="shape"
+                                    value="${ROOM_SHAPES.SQUARE}"
+                                >
+                                <label for="shape-square" class="shape-option">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <rect x="4" y="4" width="16" height="16" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                                    </svg>
+                                    Square
+                                </label>
+
+                                <input
+                                    type="radio"
+                                    id="shape-l-shaped"
+                                    name="shape"
                                     value="${ROOM_SHAPES.L_SHAPED}"
                                 >
                                 <label for="shape-l-shaped" class="shape-option">
@@ -356,12 +380,102 @@ const RoomSetupModal = {
     },
     
     /**
+     * Inject CSS for measure guide (once per page)
+     * @private
+     */
+    _injectMeasureGuideStyles() {
+        if (document.getElementById('measure-guide-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'measure-guide-styles';
+        style.textContent = `
+            .measure-guide {
+                margin: 0 0 16px;
+                border: 1px solid #e8e8ed;
+                border-radius: 10px;
+                overflow: hidden;
+                background: #f9f9fb;
+            }
+            .measure-guide__toggle {
+                padding: 10px 14px;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                color: #1d1d1f;
+                list-style: none;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                user-select: none;
+            }
+            .measure-guide__toggle::-webkit-details-marker { display: none; }
+            .measure-guide__body {
+                padding: 0 14px 12px;
+            }
+            .measure-guide__intro {
+                font-size: 12px;
+                color: #666;
+                margin: 0 0 8px;
+            }
+            .measure-guide__list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .measure-guide__list li {
+                font-size: 12px;
+                padding: 4px 0;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                color: #333;
+            }
+            .measure-guide__fit { color: #16a34a; font-weight: 600; }
+            .measure-guide__tight { color: #d97706; font-weight: 600; }
+        `;
+        document.head.appendChild(style);
+    },
+
+    /**
+     * Update measurement guide hints based on room width
+     * @private
+     */
+    _updateMeasureGuide() {
+        if (!currentModal) return;
+        const list = currentModal.querySelector('#measure-guide-list');
+        if (!list) return;
+        const width = parseFloat(currentModal.querySelector('#room-width')?.value) || 5;
+
+        const hints = [
+            { name: 'Sofa', min: 1.8, max: 2.5 },
+            { name: 'Dining table', min: 1.2, max: 1.8 },
+            { name: 'Bed (double)', min: 1.4, max: 1.4 },
+            { name: 'Desk', min: 1.2, max: 1.6 },
+            { name: 'Wardrobe', min: 0.8, max: 1.2 }
+        ];
+
+        list.innerHTML = hints.map(h => {
+            const fits = width >= h.min;
+            const tight = fits && width < h.max + 0.3;
+            const icon = fits ? (tight ? '⚠️' : '✅') : '⚠️';
+            const cls = fits ? (tight ? 'measure-guide__tight' : 'measure-guide__fit') : 'measure-guide__tight';
+            const note = fits
+                ? (tight ? `fits (tight — ${h.min}–${h.max}m typical)` : `fits comfortably`)
+                : `may be too wide (${h.min}–${h.max}m typical)`;
+            return `<li>${icon} <strong>${h.name}</strong>: <span class="${cls}">${note}</span></li>`;
+        }).join('');
+    },
+
+    /**
      * Attach all event listeners
      * @private
      */
     attachEventListeners() {
         if (!currentModal) return;
-        
+        this._injectMeasureGuideStyles();
+
         const form = currentModal.querySelector('#room-setup-form');
         const closeBtn = currentModal.querySelector('.modal-close');
         const cancelBtn = currentModal.querySelector('.modal-cancel');
@@ -419,12 +533,54 @@ const RoomSetupModal = {
             const valueEl = currentModal.querySelector('#wall-colour-value');
             if (valueEl) valueEl.textContent = e.target.value.toUpperCase();
         });
-        
+
         floorColour?.addEventListener('input', (e) => {
             const valueEl = currentModal.querySelector('#floor-colour-value');
             if (valueEl) valueEl.textContent = e.target.value.toUpperCase();
         });
+
+        // Square shape: sync depth to width and disable depth input
+        const shapeRadios = currentModal.querySelectorAll('input[name="shape"]');
+        const depthInput = currentModal.querySelector('#room-depth');
+        const widthInputForSync = currentModal.querySelector('#room-width');
+
+        const syncSquare = () => {
+            const selectedShape = currentModal.querySelector('input[name="shape"]:checked')?.value;
+            if (selectedShape === ROOM_SHAPES.SQUARE && depthInput && widthInputForSync) {
+                depthInput.value = widthInputForSync.value;
+                depthInput.disabled = true;
+                depthInput.style.opacity = '0.5';
+            } else if (depthInput) {
+                depthInput.disabled = false;
+                depthInput.style.opacity = '1';
+            }
+            this.updateFormData();
+            this.validateForm();
+        };
+
+        shapeRadios.forEach(radio => {
+            radio.addEventListener('change', syncSquare);
+        });
+
+        // When width changes and square is selected, sync depth
+        widthInputForSync?.addEventListener('input', () => {
+            const selectedShape = currentModal.querySelector('input[name="shape"]:checked')?.value;
+            if (selectedShape === ROOM_SHAPES.SQUARE && depthInput) {
+                depthInput.value = widthInputForSync.value;
+                this.updateFormData();
+                this.validateForm();
+            }
+        });
         
+        // Wire width input to measurement guide
+        const widthInput = currentModal.querySelector('#room-width');
+        if (widthInput) {
+            widthInput.addEventListener('input', () => this._updateMeasureGuide());
+            widthInput.addEventListener('change', () => this._updateMeasureGuide());
+        }
+        // Initial guide render
+        this._updateMeasureGuide();
+
         // Initial validation
         this.validateForm();
     },
@@ -435,14 +591,17 @@ const RoomSetupModal = {
      */
     updateFormData() {
         if (!currentModal) return;
-        
+
+        const shape = currentModal.querySelector('input[name="shape"]:checked')?.value || ROOM_SHAPES.RECTANGULAR;
+        const width = parseFloat(currentModal.querySelector('#room-width')?.value) || 5;
+
         this.formData = {
             designName: currentModal.querySelector('#design-name')?.value.trim() || '',
             presetId: currentModal.querySelector('#room-preset')?.value || '',
-            width: parseFloat(currentModal.querySelector('#room-width')?.value) || 5,
-            depth: parseFloat(currentModal.querySelector('#room-depth')?.value) || 4,
+            width,
+            depth: shape === ROOM_SHAPES.SQUARE ? width : (parseFloat(currentModal.querySelector('#room-depth')?.value) || 4),
             height: parseFloat(currentModal.querySelector('#room-height')?.value) || 2.8,
-            shape: currentModal.querySelector('input[name="shape"]:checked')?.value || ROOM_SHAPES.RECTANGULAR,
+            shape,
             wallColour: currentModal.querySelector('#wall-colour')?.value || DEFAULT_WALL_COLOUR,
             floorColour: currentModal.querySelector('#floor-colour')?.value || DEFAULT_FLOOR_COLOUR
         };
@@ -483,8 +642,11 @@ const RoomSetupModal = {
         }
         
         // Set shape radio
+        const squareRadio = currentModal.querySelector('#shape-square');
         if (preset.shape === ROOM_SHAPES.L_SHAPED && lShapedRadio) {
             lShapedRadio.checked = true;
+        } else if (preset.shape === ROOM_SHAPES.SQUARE && squareRadio) {
+            squareRadio.checked = true;
         } else if (rectangularRadio) {
             rectangularRadio.checked = true;
         }

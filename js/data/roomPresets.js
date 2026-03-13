@@ -64,6 +64,26 @@ export const roomPresets = [
         shape: 'rectangular',
         wallColour: '#FAFAFA',
         floorColour: '#8B7355'
+    },
+    {
+        id: 'home-office',
+        name: 'Home Office',
+        width: 3.5,
+        depth: 3,
+        height: 2.7,
+        shape: 'rectangular',
+        wallColour: '#F0EDE8',
+        floorColour: '#A0522D'
+    },
+    {
+        id: 'kids-room',
+        name: 'Kids Room',
+        width: 4,
+        depth: 3.5,
+        height: 2.7,
+        shape: 'rectangular',
+        wallColour: '#E8F0E8',
+        floorColour: '#D2B48C'
     }
 ];
 

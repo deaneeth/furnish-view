@@ -17,17 +17,49 @@
 const FURNITURE_ICONS = {
     'chair': '🪑',
     'dining-table': '🍽️',
-    'side-table': '🛏️',
+    'side-table': '𓊳',
     'sofa': '🛋️',
     'armchair': '💺',
+    'chaise': '🛋️',
     'coffee-table': '☕',
     'bookshelf': '📚',
     'desk': '🖥️',
+    'desk-chair': '💺',
     'tv-stand': '📺',
     'bed': '🛏️',
     'wardrobe': '🚪',
-    'rug': '🟫'
+    'rug': '🟫',
+    'floor-plant': '🌿',
+    'table-plant': '🪴',
+    'floor-lamp': '🪔',
+    'table-lamp': '💡',
+    'bedside-lamp': '🔅',
+    'single-door': '🚪',
+    'double-door': '🚪',
+    'standard-window': '🪟',
+    'tall-window': '🪟',
+    'small-window': '🪟'
 };
+
+/**
+ * Display labels for furniture categories
+ * @type {Object<string, string>}
+ */
+const CATEGORY_LABELS = {
+    'living': 'Living Room',
+    'bedroom': 'Bedroom',
+    'dining': 'Dining',
+    'office': 'Office',
+    'decor': 'Decor & Lighting',
+    'structure': 'Doors & Windows',
+    'general': 'General'
+};
+
+/**
+ * Presentation order for furniture categories in the toolbar
+ * @type {string[]}
+ */
+const CATEGORY_ORDER = ['living', 'bedroom', 'dining', 'office', 'decor', 'structure', 'general'];
 
 /**
  * Toolbar component
@@ -41,17 +73,20 @@ class Toolbar {
      * @param {Function} options.onUndo - Callback for undo action
      * @param {Function} options.onDelete - Callback for delete selected action
      * @param {Function} options.onExport - Callback for export as PNG action
+     * @param {Function} options.onAutoArrange - Callback for auto-arrange action
      */
     constructor({
         onFurnitureSelect = () => {},
         onUndo = () => {},
         onDelete = () => {},
-        onExport = () => {}
+        onExport = () => {},
+        onAutoArrange = () => {}
     } = {}) {
         this.onFurnitureSelect = onFurnitureSelect;
         this.onUndo = onUndo;
         this.onDelete = onDelete;
         this.onExport = onExport;
+        this.onAutoArrange = onAutoArrange;
         
         this.selectedType = null;
         this.container = null;
@@ -102,15 +137,25 @@ class Toolbar {
                             <span class="toolbar-btn-icon">🗑️</span>
                             <span class="toolbar-btn-label">Delete</span>
                         </button>
-                        <button 
-                            type="button" 
-                            class="toolbar-action-btn" 
+                        <button
+                            type="button"
+                            class="toolbar-action-btn"
                             data-action="export"
                             title="Export as PNG"
                             aria-label="Export design as PNG image"
                         >
                             <span class="toolbar-btn-icon">📷</span>
                             <span class="toolbar-btn-label">Export</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="toolbar-action-btn toolbar-action-arrange"
+                            data-action="auto-arrange"
+                            title="Auto Arrange Furniture"
+                            aria-label="Automatically arrange all furniture"
+                        >
+                            <span class="toolbar-btn-icon">✨</span>
+                            <span class="toolbar-btn-label">Arrange</span>
                         </button>
                     </div>
                 </div>
@@ -123,35 +168,52 @@ class Toolbar {
     }
     
     /**
-     * Render furniture type buttons
+     * Render furniture type buttons grouped by category
      * @param {Array} catalogue - Furniture catalogue array
-     * @returns {string} HTML string for furniture buttons
+     * @returns {string} HTML string for categorised furniture buttons
      * @private
      */
     _renderFurnitureButtons(catalogue) {
         if (!Array.isArray(catalogue) || catalogue.length === 0) {
             return '<p class="toolbar-empty">No furniture available</p>';
         }
-        
-        return catalogue.map(item => {
-            const icon = FURNITURE_ICONS[item.type] || '📦';
-            const isSelected = this.selectedType === item.type;
-            const escapedLabel = this._escapeHtml(item.label);
-            
-            return `
-                <button 
-                    type="button"
-                    class="toolbar-furniture-btn ${isSelected ? 'active' : ''}"
-                    data-furniture-type="${item.type}"
-                    title="${escapedLabel} — Click, then click on canvas to place"
-                    aria-label="Place ${escapedLabel}"
-                    aria-pressed="${isSelected}"
-                >
-                    <span class="toolbar-btn-icon">${icon}</span>
-                    <span class="toolbar-btn-label">${escapedLabel}</span>
-                </button>
-            `;
-        }).join('');
+
+        const grouped = {};
+        for (const item of catalogue) {
+            const cat = item.category || 'general';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(item);
+        }
+
+        return CATEGORY_ORDER
+            .filter(cat => grouped[cat]?.length)
+            .map(cat => {
+                const label = CATEGORY_LABELS[cat] || cat;
+                const buttons = grouped[cat].map(item => {
+                    const icon = FURNITURE_ICONS[item.type] || '📦';
+                    const isSelected = this.selectedType === item.type;
+                    const escapedLabel = this._escapeHtml(item.label);
+
+                    return `
+                        <button
+                            type="button"
+                            class="toolbar-furniture-btn ${isSelected ? 'active' : ''}"
+                            data-furniture-type="${item.type}"
+                            title="${escapedLabel} — Click, then click on canvas to place"
+                            aria-label="Place ${escapedLabel}"
+                            aria-pressed="${isSelected}"
+                        >
+                            <span class="toolbar-btn-icon">${icon}</span>
+                            <span class="toolbar-btn-label">${escapedLabel}</span>
+                        </button>`;
+                }).join('');
+
+                return `
+                    <div class="toolbar-category-group">
+                        <span class="toolbar-category-label">${this._escapeHtml(label)}</span>
+                        ${buttons}
+                    </div>`;
+            }).join('');
     }
     
     /**
@@ -241,6 +303,9 @@ class Toolbar {
                 break;
             case 'export':
                 this.onExport();
+                break;
+            case 'auto-arrange':
+                this.onAutoArrange();
                 break;
         }
     }
