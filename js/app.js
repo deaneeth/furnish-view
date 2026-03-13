@@ -20,11 +20,14 @@ import { RoomSetupModal } from './views/components/RoomSetupModal.js';
 import { EditorView } from './views/EditorView.js';
 import { ComparisonView } from './views/ComparisonView.js';
 import { Modal } from './views/components/Modal.js';
-import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCart, getCartCount, removeFromCart, updateCartQuantity, clearCart, saveOrder, getUserByUsername } from './utils/storage.js';
+import { ProductDetailView } from './views/ProductDetailView.js';
+import { OrderHistoryView } from './views/OrderHistoryView.js';
+import { initializeStorage, getAllDesigns, deleteDesign, saveDesign, loadDesign, addToCart, getCart, getCartCount, removeFromCart, updateCartQuantity, clearCart, saveOrder, getUserByUsername, getOrders, getUsers, initializeInventory, getInventory, setStock, getWishlist, toggleWishlist, isInWishlist, getAllOrders, updateOrderStatus } from './utils/storage.js';
 import { isLoggedIn, getCurrentUser, logout, getUserRole } from './auth/auth.js';
 import { Toast } from './views/components/Toast.js';
 import { Design } from './models/Design.js';
 import { Room } from './models/Room.js';
+import { furnitureCatalogue } from './data/furnitureCatalogue.js';
 
 /**
  * Application state
@@ -35,7 +38,8 @@ const AppState = {
     currentDesignId: null,
     user: null,
     viewInstance: null,
-    pendingFurnitureType: null
+    pendingFurnitureType: null,
+    pendingSharedDesignId: null
 };
 
 /**
@@ -175,10 +179,19 @@ function showAdminDashboard() {
         onOpenDesign: handleOpenDesign,
         onDeleteDesign: handleDeleteDesign,
         onLogout: handleLogout,
-        onCompareDesigns: handleCompareDesigns
+        onCompareDesigns: handleCompareDesigns,
+        onUpdateOrderStatus: (orderId, status) => {
+            updateOrderStatus(orderId, status);
+            Toast.success(`Order status updated to ${status}`);
+        }
     });
 
-    dashboardView.render(container, userDesigns, username);
+    dashboardView.render(container, userDesigns, username, {
+        orders: getAllOrders(),
+        allUsers: getUsers(),
+        inventory: getInventory(),
+        isAdmin: true
+    });
     AppState.viewInstance = dashboardView;
 }
 
@@ -212,7 +225,8 @@ function showUserDashboard() {
         },
         onViewCart: () => {
             showCart();
-        }
+        },
+        onViewOrders: () => showOrderHistory()
     });
 
     userDashboardView.render(container, userDesigns, username, {
@@ -259,12 +273,24 @@ function showCatalogue(category = 'all') {
         },
         onViewCart: () => {
             showCart();
-        }
+        },
+        onViewProduct: (type) => showProductDetail(type),
+        onToggleWishlist: (type) => {
+            if (getUserRole() === 'user') {
+                const result = toggleWishlist(username, type);
+                catalogueView.updateWishlist(type, result.inWishlist);
+                Toast.success(result.inWishlist ? 'Added to wishlist' : 'Removed from wishlist');
+            }
+        },
+        username,
+        wishlistItems: getUserRole() === 'user' ? getWishlist(username) : []
     });
 
     catalogueView.render(container, {
         category: category || 'all',
-        cartCount: getCartCount(username)
+        cartCount: getCartCount(username),
+        wishlistItems: getUserRole() === 'user' ? getWishlist(username) : [],
+        username
     });
     AppState.viewInstance = catalogueView;
 }
@@ -361,6 +387,85 @@ function showCheckout() {
         email: userProfile ? userProfile.email : ''
     });
     AppState.viewInstance = checkoutView;
+}
+
+/**
+ * Navigate to the product detail page for a specific furniture item
+ * @param {string} furnitureType - The furniture type identifier
+ */
+function showProductDetail(furnitureType) {
+    if (!isLoggedIn()) { showLanding(); return; }
+
+    clearContainer();
+    AppState.currentView = 'product-detail';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user?.username || '';
+    const role = getUserRole();
+
+    const item = furnitureCatalogue.find(f => f.type === furnitureType);
+    if (!item) { showCatalogue(); return; }
+
+    const pdView = new ProductDetailView({
+        onBack: () => showCatalogue(),
+        onAddToCart: (item, selectedColour) => {
+            const furnitureType = (item && item.type) ? item.type : item;
+            const itemPrice = (item && item.price) ? item.price : 0;
+            const success = addToCart(username, furnitureType, 1, itemPrice);
+            if (success) {
+                Toast.success(`Added to cart${selectedColour ? '' : ''}`);
+                pdView.updateCartCount(getCartCount(username));
+            } else {
+                Toast.error('Failed to add to cart');
+            }
+        },
+        onAddToWishlist: (type) => {
+            const result = toggleWishlist(username, type);
+            return result;
+        },
+        onUseInDesign: (type) => {
+            AppState.pendingFurnitureType = type;
+            handleNewDesign();
+        },
+        onViewRelated: (type) => showProductDetail(type),
+        onViewCart: () => showCart(),
+        username
+    });
+
+    pdView.render(container, item, {
+        cartCount: getCartCount(username),
+        isInWishlist: isInWishlist(username, furnitureType),
+        userRole: role
+    });
+    AppState.viewInstance = pdView;
+}
+
+/**
+ * Navigate to the order history page for the current user
+ */
+function showOrderHistory() {
+    if (!isLoggedIn()) { showLanding(); return; }
+
+    clearContainer();
+    AppState.currentView = 'order-history';
+    AppState.user = getCurrentUser();
+
+    const container = getAppContainer();
+    if (!container) return;
+
+    const username = AppState.user?.username || '';
+    const orders = getOrders(username);
+
+    const ohView = new OrderHistoryView({
+        onBack: () => showDashboard(),
+        onContinueShopping: () => showCatalogue()
+    });
+
+    ohView.render(container, orders, { username, cartCount: getCartCount(username) });
+    AppState.viewInstance = ohView;
 }
 
 /**
@@ -556,10 +661,17 @@ function showEditor(designId) {
     }
     
     // Create EditorView instance
+    const username = AppState.user ? AppState.user.username : '';
     const editorView = new EditorView({
         onSave: (updatedDesign) => handleSaveDesign(updatedDesign),
         onBack: () => showDashboard(),
-        onToggle3D: (view) => handleToggle3D(view)
+        onToggle3D: (view) => handleToggle3D(view),
+        userRole: getUserRole(),
+        onAddAllToCart: (items) => {
+            items.forEach(({ type, quantity, price }) => addToCart(username, type, quantity, price));
+            Toast.success(`${items.length} item type${items.length !== 1 ? 's' : ''} added to cart`);
+        },
+        onCheckoutFromCanvas: () => showCheckout()
     });
     
     editorView.render(container, design);
@@ -637,10 +749,49 @@ function escapeHtml(text) {
 function initApp() {
     // Initialize storage with default users
     initializeStorage();
-    
+
+    // Initialize inventory from catalogue
+    initializeInventory(furnitureCatalogue);
+
+    // Handle shared design link
+    const hash = window.location.hash;
+    if (hash.startsWith('#share=')) {
+        const sharedDesignId = hash.slice(7);
+        if (sharedDesignId) {
+            // Store for after login
+            AppState.pendingSharedDesignId = sharedDesignId;
+        }
+    }
+
     // Check authentication status and route accordingly
     if (isLoggedIn()) {
         AppState.user = getCurrentUser();
+
+        // Open shared design directly if user is already logged in
+        if (AppState.pendingSharedDesignId) {
+            const id = AppState.pendingSharedDesignId;
+            AppState.pendingSharedDesignId = null;
+            const sharedDesign = loadDesign(id);
+            if (!sharedDesign) {
+                // Show 404 error state
+                const container = getAppContainer();
+                if (container) {
+                    container.innerHTML = `
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,sans-serif;gap:16px;padding:32px;text-align:center;">
+                            <div style="font-size:64px;">🏠</div>
+                            <h2 style="font-size:24px;font-weight:700;color:#1d1d1f;margin:0;">This design no longer exists</h2>
+                            <p style="color:#666;margin:0;max-width:360px;">The shared design link may have expired or been deleted by the owner.</p>
+                            <button id="err-new-design" style="margin-top:8px;padding:12px 28px;background:#1d1d1f;color:#fff;border:none;border-radius:9999px;font-size:15px;font-weight:600;cursor:pointer;">Start a New Design →</button>
+                        </div>
+                    `;
+                    container.querySelector('#err-new-design')?.addEventListener('click', () => handleNewDesign());
+                }
+                return;
+            }
+            showEditor(id);
+            return;
+        }
+
         showDashboard();
     } else {
         showLanding();
@@ -669,6 +820,8 @@ export {
     showCheckout,
     showEditor,
     showComparison,
+    showProductDetail,
+    showOrderHistory,
     handleLogout,
     initApp
 };
