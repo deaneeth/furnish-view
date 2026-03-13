@@ -22,6 +22,7 @@
 
 import { getFurnitureByType } from '../data/furnitureCatalogue.js';
 import { Toast } from './components/Toast.js';
+import { validatePromoCode, calculateDiscount } from '../data/promotions.js';
 
 /** Delivery fee in USD */
 const DELIVERY_FEE = 49.99;
@@ -91,6 +92,8 @@ class CheckoutView {
         this._deliveryData = {};
         this._orderId = null;
         this._prefill = {};
+        this._promoCode = null;
+        this._discount = 0;
     }
 
     /**
@@ -117,7 +120,7 @@ class CheckoutView {
     _buildDOM() {
         const subtotal = this._getSubtotal();
         const delivery = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
-        const total = subtotal + delivery;
+        const total = subtotal - this._discount + delivery;
         const step = STEPS[this._currentStep];
 
         this.container.innerHTML = `
@@ -345,9 +348,21 @@ class CheckoutView {
                         <div class="ck-order-summary__row">
                             <span>Delivery</span><span>${delivery === 0 ? '<span class="cart-free-delivery">Free</span>' : formatPrice(delivery)}</span>
                         </div>
-                        <div class="ck-order-summary__divider"></div>
-                        <div class="ck-order-summary__row ck-order-summary__row--total">
-                            <span>Total</span><span>${formatPrice(total)}</span>
+
+                        <!-- Promo Code Section -->
+                        <div class="checkout-promo">
+                            <div class="checkout-promo__label">Have a promo code?</div>
+                            <div class="checkout-promo__row">
+                                <input type="text" id="promo-code-input" class="checkout-promo__input"
+                                       placeholder="Enter code (e.g. WELCOME10)" autocomplete="off"
+                                       style="text-transform:uppercase"/>
+                                <button type="button" id="promo-apply-btn" class="checkout-promo__btn">Apply</button>
+                            </div>
+                            <div id="promo-feedback" class="checkout-promo__feedback" style="display:none"></div>
+                        </div>
+
+                        <div id="ck-order-totals">
+                            ${this._renderTotalsHTML(subtotal, delivery)}
                         </div>
                     </aside>
                 </div>
@@ -379,6 +394,9 @@ class CheckoutView {
 
                     <h2 class="ck-confirmation__title">Order Confirmed!</h2>
                     <p class="ck-confirmation__ref">Order Reference: <strong>${escapeHtml(this._orderId || 'FV-0000-00000')}</strong></p>
+                    <p class="ck-confirm-email">
+                        📧 Confirmation sent to <strong id="ck-confirm-email-addr">${escapeHtml(this._deliveryData?.email || '')}</strong>
+                    </p>
 
                     <div class="ck-confirmation__summary">
                         <div class="ck-confirmation__row">
@@ -424,9 +442,134 @@ class CheckoutView {
         return this._cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     }
 
+    /**
+     * Render the totals rows HTML (discount line, divider, grand total).
+     * @private
+     * @param {number} subtotal
+     * @param {number} delivery
+     * @returns {string}
+     */
+    _renderTotalsHTML(subtotal, delivery) {
+        const total = subtotal - this._discount + delivery;
+        return `
+            ${this._discount > 0 ? `
+            <div class="ck-order-summary__row checkout-summary__row--discount">
+                <span>Promo (${escapeHtml(this._promoCode?.code || '')})</span>
+                <span class="checkout-summary__discount">-$${this._discount.toFixed(2)}</span>
+            </div>` : ''}
+            <div class="ck-order-summary__divider"></div>
+            <div class="ck-order-summary__row ck-order-summary__row--total">
+                <span>Total</span><span>${formatPrice(total)}</span>
+            </div>
+        `;
+    }
+
+    /**
+     * Recalculate and re-render the totals section in the order summary.
+     * Also updates the Place Order button amount.
+     * @private
+     */
+    _updateOrderTotals() {
+        const subtotal = this._getSubtotal();
+        const delivery = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+        const totalsEl = this.container?.querySelector('#ck-order-totals');
+        if (totalsEl) {
+            totalsEl.innerHTML = this._renderTotalsHTML(subtotal, delivery);
+        }
+        // Update the Place Order button label
+        const total = subtotal - this._discount + delivery;
+        const submitBtn = this.container?.querySelector('#ck-payment-submit');
+        if (submitBtn) {
+            submitBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                Place Order - ${formatPrice(total)}
+            `;
+        }
+    }
+
+    /**
+     * Apply the promo code entered by the user.
+     * @private
+     */
+    _applyPromoCode() {
+        const input = this.container.querySelector('#promo-code-input');
+        const feedback = this.container.querySelector('#promo-feedback');
+        if (!input || !feedback) return;
+
+        const code = input.value.trim().toUpperCase();
+        if (!code) return;
+        const subtotal = this._cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+        const result = validatePromoCode(code, subtotal);
+
+        feedback.style.display = 'block';
+
+        if (!result || !result.valid) {
+            feedback.className = 'checkout-promo__feedback checkout-promo__feedback--error';
+            feedback.textContent = result?.message || 'Invalid promo code';
+            this._promoCode = null;
+            this._discount = 0;
+        } else {
+            this._promoCode = result.promo;
+            this._discount = calculateDiscount(result.promo, subtotal);
+            feedback.className = 'checkout-promo__feedback checkout-promo__feedback--success';
+            feedback.innerHTML = `✓ ${result.promo.description} — <strong>-$${this._discount.toFixed(2)}</strong>`;
+
+            // Update the apply button to "Remove"
+            const applyBtn = this.container.querySelector('#promo-apply-btn');
+            if (applyBtn) {
+                applyBtn.textContent = 'Remove';
+                applyBtn.classList.add('checkout-promo__btn--remove');
+                applyBtn.onclick = () => this._removePromoCode();
+            }
+        }
+
+        this._updateOrderTotals();
+    }
+
+    /**
+     * Remove the currently applied promo code and reset state.
+     * @private
+     */
+    _removePromoCode() {
+        this._promoCode = null;
+        this._discount = 0;
+        const input = this.container.querySelector('#promo-code-input');
+        const feedback = this.container.querySelector('#promo-feedback');
+        const applyBtn = this.container.querySelector('#promo-apply-btn');
+
+        if (input) input.value = '';
+        if (feedback) { feedback.style.display = 'none'; feedback.className = 'checkout-promo__feedback'; }
+        if (applyBtn) { applyBtn.textContent = 'Apply'; applyBtn.classList.remove('checkout-promo__btn--remove'); applyBtn.onclick = null; }
+
+        this._updateOrderTotals();
+    }
+
     // =========================================================================
     // EVENT LISTENERS
     // =========================================================================
+
+    /** @private */
+    _injectPromoStyles() {
+        if (document.getElementById('promo-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'promo-styles';
+        style.textContent = `
+.checkout-promo { margin: 16px 0; padding: 16px; background: #F9F9FB; border-radius: 10px; border: 1px solid #E8E8ED; }
+.checkout-promo__label { font-size: 12px; font-weight: 600; color: #86868B; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.checkout-promo__row { display: flex; gap: 8px; }
+.checkout-promo__input { flex: 1; height: 36px; padding: 0 12px; border: 1.5px solid #E8E8ED; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: 1px; outline: none; transition: border-color 0.2s; background: white; }
+.checkout-promo__input:focus { border-color: #5E5CE6; }
+.checkout-promo__btn { height: 36px; padding: 0 16px; background: #5E5CE6; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+.checkout-promo__btn:hover { background: #4B49CC; }
+.checkout-promo__btn--remove { background: #E5E7EB; color: #1D1D1F; }
+.checkout-promo__btn--remove:hover { background: #D1D5DB; }
+.checkout-promo__feedback { font-size: 12.5px; margin-top: 6px; padding: 6px 10px; border-radius: 6px; }
+.checkout-promo__feedback--error { background: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; }
+.checkout-promo__feedback--success { background: #F0FDF4; color: #10B981; border: 1px solid #A7F3D0; }
+.checkout-summary__row--discount span:last-child { color: #10B981; font-weight: 700; }
+        `.trim();
+        document.head.appendChild(style);
+    }
 
     /** @private */
     _attachEventListeners() {
@@ -444,7 +587,7 @@ class CheckoutView {
         });
 
         if (step === 'delivery') this._attachDeliveryListeners();
-        if (step === 'payment') this._attachPaymentListeners();
+        if (step === 'payment') { this._injectPromoStyles(); this._attachPaymentListeners(); }
         if (step === 'confirmation') this._attachConfirmationListeners();
     }
 
@@ -538,6 +681,12 @@ class CheckoutView {
                 this._handlePlaceOrder();
             }
         });
+
+        // Promo code
+        const applyBtn = this.container.querySelector('#promo-apply-btn');
+        const promoInput = this.container.querySelector('#promo-code-input');
+        applyBtn?.addEventListener('click', () => this._applyPromoCode());
+        promoInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') this._applyPromoCode(); });
     }
 
     /** @private */
@@ -720,7 +869,10 @@ class CheckoutView {
 
     /** @private */
     _handlePlaceOrder() {
-        const result = this.onPlaceOrder(this._deliveryData);
+        const subtotal = this._getSubtotal();
+        const delivery = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+        const finalTotal = subtotal - this._discount + delivery;
+        const result = this.onPlaceOrder(this._deliveryData, finalTotal);
 
         if (result && result.success) {
             this._orderId = result.orderId;
@@ -740,7 +892,7 @@ class CheckoutView {
     _downloadReceipt() {
         const subtotal = this._getSubtotal();
         const delivery = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
-        const total = subtotal + delivery;
+        const total = subtotal - this._discount + delivery;
         const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
         let lines = [
@@ -775,6 +927,9 @@ class CheckoutView {
         lines.push('');
         lines.push('───────────────────────────────────────────');
         lines.push('Subtotal'.padEnd(30) + formatPrice(subtotal));
+        if (this._discount > 0 && this._promoCode) {
+            lines.push(`Promo (${this._promoCode.code})`.padEnd(30) + `-$${this._discount.toFixed(2)}`);
+        }
         lines.push('Delivery'.padEnd(30) + (delivery === 0 ? 'Free' : formatPrice(delivery)));
         lines.push('═══════════════════════════════════════════');
         lines.push('TOTAL'.padEnd(30) + formatPrice(total));
@@ -783,16 +938,41 @@ class CheckoutView {
         lines.push('Thank you for shopping with FurnishView!');
         lines.push('Your furniture will arrive in 5-7 business days.');
 
-        const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `FurnishView-Receipt-${this._orderId || 'order'}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        Toast.success('Receipt downloaded');
+        try {
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `FurnishView-Receipt-${this._orderId || 'order'}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            Toast.success('Receipt downloaded');
+        } catch (err) {
+            // Fallback: print
+            this._injectPrintStyles();
+            window.print();
+        }
+    }
+
+    /** @private */
+    _injectPrintStyles() {
+        if (document.getElementById('ck-print-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'ck-print-styles';
+        style.textContent = `
+@media print {
+    body > *:not(#app) { display: none !important; }
+    #app > *:not(.checkout-view) { display: none !important; }
+    .checkout-view > *:not(.ck-content--confirmation) { display: none !important; }
+    .ck-header, .ck-steps, .ck-confirmation__actions { display: none !important; }
+    .ck-confirmation__summary, .ck-confirmation__ref, .ck-confirm-email,
+    .ck-confirmation__title, .ck-confirmation__delivery-note { display: block !important; }
+    .ck-content--confirmation { display: block !important; }
+}
+        `;
+        document.head.appendChild(style);
     }
 
     // =========================================================================
@@ -803,6 +983,8 @@ class CheckoutView {
         this.container = null;
         this._cartItems = [];
         this._deliveryData = {};
+        this._promoCode = null;
+        this._discount = 0;
     }
 }
 
