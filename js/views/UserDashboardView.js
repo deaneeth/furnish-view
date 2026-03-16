@@ -25,6 +25,7 @@ import { Modal } from './components/Modal.js';
 import { Toast } from './components/Toast.js';
 import { loadSampleData, getAllDesigns } from '../utils/storage.js';
 import { on } from '../utils/eventBus.js';
+import furnitureCatalogue, { getFurnitureByCategory } from '../data/furnitureCatalogue.js';
 
 /** Thumbnail canvas dimensions in pixels */
 const THUMB_WIDTH = 400;
@@ -426,8 +427,11 @@ class UserDashboardView {
      * @private
      */
     _renderCategoryCard(category) {
-        const itemCount = category.types.length;
-        const countLabel = category.id === 'all' ? '12 items' : `${itemCount} items`;
+        // Dynamically count items from the actual catalogue
+        const itemCount = category.id === 'all'
+            ? furnitureCatalogue.length
+            : getFurnitureByCategory(category.id).length;
+        const countLabel = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
 
         return `
             <button type="button" class="ud-category-card" data-category="${escapeHtml(category.id)}">
