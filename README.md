@@ -22,7 +22,7 @@ A JavaScript + Three.js furniture room visualizer with 2D canvas layout and 3D r
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/[username]/furnish-view.git
+git clone https://github.com/deaneeth/furnish-view-hci-project.git
 cd furnish-view
 ```
 
@@ -94,9 +94,9 @@ furnish-view/
 - UI icons from [Lucide](https://lucide.dev/) (MIT License)
 
 ### Team
-- **Lead Developer:** [Team Member 1]
-- **Design & Documentation:** [Team Member 2]
-- **Testing & Evaluation:** [Team Member 3]
+- **Lead Developer:** Deaneeth
+- **Design & Documentation:** Member 2
+- **Testing & Evaluation:** Member 3
 
 ---
 

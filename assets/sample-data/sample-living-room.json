@@ -1,0 +1,62 @@
+{
+  "id": "design_sample_living_room",
+  "name": "Sample Living Room",
+  "designerName": "designer1",
+  "createdAt": "2026-03-13T12:00:00",
+  "room": {
+    "width": 5, "depth": 4, "height": 2.8,
+    "shape": "rectangular",
+    "wallColour": "#E8E0D4",
+    "floorColour": "#8B7355"
+  },
+  "furniture": [
+    {
+      "id": "f_lr_001",
+      "type": "rug",
+      "x": 1.5, "y": 1.0,
+      "width": 2.0, "depth": 1.5, "height": 0.02,
+      "colour": "#C4785A",
+      "rotation": 0
+    },
+    {
+      "id": "f_lr_002",
+      "type": "sofa",
+      "x": 1.5, "y": 1.2,
+      "width": 2.0, "depth": 0.9, "height": 0.85,
+      "colour": "#A8B4A5",
+      "rotation": 0
+    },
+    {
+      "id": "f_lr_003",
+      "type": "coffee-table",
+      "x": 1.9, "y": 2.2,
+      "width": 1.2, "depth": 0.6, "height": 0.45,
+      "colour": "#7D5A3C",
+      "rotation": 0
+    },
+    {
+      "id": "f_lr_004",
+      "type": "tv-stand",
+      "x": 1.75, "y": 3.4,
+      "width": 1.5, "depth": 0.45, "height": 0.55,
+      "colour": "#6E6E6E",
+      "rotation": 0
+    },
+    {
+      "id": "f_lr_005",
+      "type": "armchair",
+      "x": 0.5, "y": 1.8,
+      "width": 0.9, "depth": 0.85, "height": 0.9,
+      "colour": "#B8976A",
+      "rotation": 90
+    },
+    {
+      "id": "f_lr_006",
+      "type": "bookshelf",
+      "x": 4.0, "y": 0.5,
+      "width": 0.8, "depth": 0.3, "height": 1.8,
+      "colour": "#A67B5B",
+      "rotation": 0
+    }
+  ]
+}

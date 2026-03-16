@@ -1,0 +1,37 @@
+{
+  "id": "design_sample_dining_room",
+  "name": "Sample Dining Room",
+  "designerName": "designer1",
+  "createdAt": "2026-03-13T12:10:00",
+  "room": {
+    "width": 6, "depth": 4, "height": 2.8,
+    "shape": "rectangular",
+    "wallColour": "#E8E0D4",
+    "floorColour": "#8B7355"
+  },
+  "furniture": [
+    {
+      "id": "f_dr_001",
+      "type": "rug",
+      "x": 2.0, "y": 1.25,
+      "width": 2.0, "depth": 1.5, "height": 0.02,
+      "colour": "#C4785A",
+      "rotation": 0
+    },
+    {
+      "id": "f_dr_002",
+      "type": "dining-table",
+      "x": 2.2, "y": 1.55,
+      "width": 1.6, "depth": 0.9, "height": 0.75,
+      "colour": "#A0825A",
+      "rotation": 0
+    },
+    { "id": "f_dr_003", "type": "chair", "x": 2.4, "y": 1.0, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#C19A6B", "rotation": 0 },
+    { "id": "f_dr_004", "type": "chair", "x": 3.1, "y": 1.0, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#C19A6B", "rotation": 0 },
+    { "id": "f_dr_005", "type": "chair", "x": 2.4, "y": 2.5, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#C19A6B", "rotation": 180 },
+    { "id": "f_dr_006", "type": "chair", "x": 3.1, "y": 2.5, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#C19A6B", "rotation": 180 },
+    { "id": "f_dr_007", "type": "chair", "x": 1.6, "y": 1.75, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#C19A6B", "rotation": 270 },
+    { "id": "f_dr_008", "type": "chair", "x": 3.9, "y": 1.75, "width": 0.5, "depth": 0.5, "height": 0.85, "colour": "#C19A6B", "rotation": 90 },
+    { "id": "f_dr_009", "type": "side-table", "x": 5.0, "y": 1.7, "width": 0.5, "depth": 0.5, "height": 0.55, "colour": "#D4B896", "rotation": 0 }
+  ]
+}
