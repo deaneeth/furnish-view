@@ -1,0 +1,54 @@
+{
+  "id": "design_sample_bedroom",
+  "name": "Sample Bedroom",
+  "designerName": "designer1",
+  "createdAt": "2026-03-13T12:05:00",
+  "room": {
+    "width": 4, "depth": 3.5, "height": 2.8,
+    "shape": "rectangular",
+    "wallColour": "#E8E0D4",
+    "floorColour": "#8B7355"
+  },
+  "furniture": [
+    {
+      "id": "f_br_001",
+      "type": "bed",
+      "x": 1.2, "y": 0.1,
+      "width": 1.6, "depth": 2.0, "height": 0.5,
+      "colour": "#EDE3D5",
+      "rotation": 0
+    },
+    {
+      "id": "f_br_002",
+      "type": "side-table",
+      "x": 0.6, "y": 0.1,
+      "width": 0.5, "depth": 0.5, "height": 0.55,
+      "colour": "#D4B896",
+      "rotation": 0
+    },
+    {
+      "id": "f_br_003",
+      "type": "wardrobe",
+      "x": 2.1, "y": 2.8,
+      "width": 1.8, "depth": 0.6, "height": 2.0,
+      "colour": "#C9A87C",
+      "rotation": 0
+    },
+    {
+      "id": "f_br_004",
+      "type": "desk",
+      "x": 0.1, "y": 2.7,
+      "width": 1.4, "depth": 0.7, "height": 0.75,
+      "colour": "#C8AD8A",
+      "rotation": 0
+    },
+    {
+      "id": "f_br_005",
+      "type": "desk-chair",
+      "x": 0.5, "y": 2.0,
+      "width": 0.6, "depth": 0.6, "height": 1.05,
+      "colour": "#3A3A3A",
+      "rotation": 180
+    }
+  ]
+}
