@@ -33,9 +33,13 @@ switch-user.sh
 /requirements
 /video
 .claude/
+/formative-docs
+/summative-docs
+/docs/*
 
 # Do NOT ignore:
 # - lib/three.min.js
 # - lib/OrbitControls.js
 # - assets/
 # These MUST be committed so the app runs without any setup.
+/docs
